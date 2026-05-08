@@ -14,18 +14,24 @@
     - name: Build root cause analysis query
       ansible.builtin.set_fact:
         rca_query: |-
-          You are an expert site reliability engineer performing root cause analysis.
+          You are an expert site reliability engineer. Analyse the incident and diagnostics data below, then respond with ONLY the following sections. Be specific — reference actual service names, error messages, and config values from the diagnostics.
 
-          Based on the incident and diagnostics below, provide:
-          1. Root cause analysis — what failed and why
-          2. Remediation steps — specific actions to resolve the issue
-          3. Prevention recommendations — how to stop this recurring
+          ## Root Cause
+          A concise explanation of what failed and why.
 
+          ## Step-by-Step Remediation
+          Numbered steps an operator should follow to resolve this issue right now. Include specific commands, config changes, or service restarts required. Be precise — assume the operator has SSH access to the affected hosts.
+
+          ## Prevention
+          What should change to stop this recurring (config management, monitoring, alerting).
+
+          ---
           Incident: {{ incident_description | default('No incident description provided.') }}
 
-          Diagnostics: {{ diagnostics_report | default('No diagnostics report available.') }}
+          Diagnostics output:
+          {{ diagnostics_report | default('No diagnostics report available.') }}
 
-          Service components involved: {{ service_components | default([]) | join(', ') }}
+          Affected components: {{ service_components | default([]) | join(', ') }}
 
     - name: Call ALIA for root cause analysis
       ansible.builtin.uri:

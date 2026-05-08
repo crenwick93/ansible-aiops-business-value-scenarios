@@ -5,20 +5,12 @@
 
   tasks:
 
-    - name: Format analysis as HTML for ServiceNow
-      ansible.builtin.set_fact:
-        work_notes_html: |-
-          <h3>Automated Diagnostics Report</h3>
-          <p><strong>Incident:</strong> {{ incident_description | default('N/A') }}</p>
-          <h4>AI Analysis</h4>
-          <pre>{{ alia_analysis | default('No analysis available.') }}</pre>
-
-    - name: Update incident with analysis and set to In Progress
+    - name: Update incident with AI analysis and set to In Progress
       servicenow.itsm.incident:
         sys_id: "{{ incident_sys_id }}"
         state: in_progress
         other:
-          work_notes: "[code]{{ work_notes_html }}[/code]"
+          work_notes: "{{ alia_analysis | default('No analysis available.') | regex_replace('\n', '<br/>') }}"
       register: updated_incident
 
     - name: Confirm update
