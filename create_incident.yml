@@ -1,0 +1,49 @@
+---
+- name: Create demo incident in ServiceNow
+  hosts: localhost
+  gather_facts: false
+
+  environment:
+    SN_HOST: "{{ lookup('env', 'SERVICENOW_INSTANCE_URL') }}"
+    SN_USERNAME: "{{ lookup('env', 'SERVICENOW_USERNAME') }}"
+    SN_PASSWORD: "{{ lookup('env', 'SERVICENOW_PASSWORD') }}"
+
+  vars:
+    sn_instance: "{{ lookup('env', 'SERVICENOW_INSTANCE_URL') }}"
+    caller_name: "{{ lookup('env', 'SERVICENOW_CALLER_NAME') | default('Chris Renwick', true) | lower | replace(' ', '.') }}"
+
+  tasks:
+    - name: Create incident
+      servicenow.itsm.incident:
+        state: new
+        caller: "{{ caller_name }}"
+        short_description: "Passport applications stuck at payment stage - citizens waiting 14+ days"
+        description: |
+          Call centre receiving increasing complaints from citizens whose standard adult
+          passport applications are stuck at "Payment Received - Awaiting Processing".
+          Citizens have been charged but applications are not progressing to the processing stage.
+
+          Affected references reported by citizens:
+          - CIT-SMITH01 — submitted 21 April, last updated 23 April, stuck 14 days
+          - CIT-JONES02 — submitted 22 April, stuck 13 days
+          - CIT-BROWN03 — submitted 24 April, stuck 11 days
+
+          Citizen-facing status page shows red warning: "Your payment was received
+          but your application has not yet progressed."
+
+          Premium and child applications appear to be processing normally.
+          Issue appears isolated to Standard Adult fee type.
+        impact: medium
+        urgency: high
+        other:
+          category: software
+          business_service: "Passport online application service"
+          assignment_group: "Service Reliability"
+      register: incident
+
+    - name: Show incident details
+      ansible.builtin.debug:
+        msg: |
+          Incident created: {{ incident.record.number }}
+          Priority: {{ incident.record.priority }}
+          URL: {{ sn_instance }}/incident.do?sys_id={{ incident.record.sys_id }}
