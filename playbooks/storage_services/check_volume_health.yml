@@ -1,8 +1,8 @@
 ---
 - name: Check Volume Health
-  hosts: "{{ target_hosts | default('storage_servers') }}"
+  hosts: all
   become: true
-  gather_facts: true
+  gather_facts: false
   tasks:
     - name: Check filesystem usage
       ansible.builtin.shell:
@@ -10,28 +10,32 @@
       register: disk_usage
       changed_when: false
 
-    - name: Check for read-only filesystems
-      ansible.builtin.shell:
-        cmd: mount | grep -E '\bro\b' | grep -v 'snap\|squashfs' || echo "none"
-      register: ro_mounts
-      changed_when: false
-
-    - name: Check inode usage
-      ansible.builtin.shell:
-        cmd: df -i --output=target,ipcent | tail -n +2
-      register: inode_usage
-      changed_when: false
-
     - name: Check for I/O errors in dmesg
       ansible.builtin.shell:
-        cmd: dmesg | grep -i 'i/o error\|read error\|write error' | tail -5 || echo "none"
+        cmd: dmesg 2>/dev/null | grep -i 'i/o error\|read error\|write error' | tail -5 || echo "no I/O errors"
       register: io_errors
       changed_when: false
 
-    - name: Report volume health summary
+    - name: Check PostgreSQL data directory usage (if applicable)
+      ansible.builtin.shell:
+        cmd: du -sh /var/lib/pgsql/data 2>/dev/null || echo "not a database host"
+      register: pg_data_usage
+      changed_when: false
+
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        storage_report: |
+          STORAGE DIAGNOSTICS ({{ inventory_hostname }})
+          Filesystem usage:
+          {{ disk_usage.stdout | default('unavailable') }}
+          I/O errors: {{ io_errors.stdout | default('none') }}
+          PostgreSQL data dir: {{ pg_data_usage.stdout | default('N/A') }}
+
+    - name: Display report
       ansible.builtin.debug:
-        msg: >-
-          Host={{ inventory_hostname }}
-          filesystem_usage={{ disk_usage.stdout_lines | length }} mounts checked
-          readonly_mounts={{ ro_mounts.stdout | trim }}
-          io_errors={{ io_errors.stdout | trim }}
+        msg: "{{ storage_report }}"
+
+    - name: Publish findings for downstream workflow nodes
+      ansible.builtin.set_stats:
+        data:
+          storage_diagnostics: "{{ storage_report }}"

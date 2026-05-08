@@ -1,34 +1,67 @@
 ---
 - name: Check Consumer Lag
-  hosts: "{{ target_hosts | default('kafka_brokers') }}"
+  hosts: all
   become: true
   gather_facts: false
   tasks:
-    - name: List all consumer groups
+    - name: Get topic list
       ansible.builtin.shell:
-        cmd: /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
-      register: consumer_groups
+        cmd: /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+      register: topic_list
       changed_when: false
 
-    - name: Check lag for each group
+    - name: Get message counts per topic
+      ansible.builtin.shell:
+        cmd: >-
+          /opt/kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell
+          --broker-list localhost:9092
+          --topic {{ item }}
+          --time -1 2>/dev/null | awk -F: '{sum += $3} END {print sum}'
+      loop: "{{ topic_list.stdout_lines | select('match', '^payments') | list }}"
+      register: topic_counts
+      changed_when: false
+
+    - name: Get consumer group details
       ansible.builtin.shell:
         cmd: >-
           /opt/kafka/bin/kafka-consumer-groups.sh
           --bootstrap-server localhost:9092
-          --describe --group {{ item }}
-          2>/dev/null | tail -n +2
-      loop: "{{ consumer_groups.stdout_lines }}"
-      register: lag_results
+          --describe --group app-svc 2>/dev/null | tail -n +2
+      register: consumer_group_detail
       changed_when: false
-      when: consumer_groups.stdout_lines | length > 0
 
-    - name: Report consumer lag summary
-      ansible.builtin.debug:
-        msg: "Group={{ item.item }} lag_output={{ item.stdout_lines | default([]) | length }} partitions tracked"
-      loop: "{{ lag_results.results | default([]) }}"
-      when: lag_results.results is defined
+    - name: Sample messages from DLQ
+      ansible.builtin.shell:
+        cmd: >-
+          /opt/kafka/bin/kafka-console-consumer.sh
+          --bootstrap-server localhost:9092
+          --topic payments.dlq
+          --from-beginning --max-messages 5
+          --timeout-ms 5000 2>/dev/null || true
+      register: dlq_sample
+      changed_when: false
+      when: "'payments.dlq' in topic_list.stdout"
 
-    - name: Alert if lag exceeds threshold
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        kafka_report: |
+          KAFKA DIAGNOSTICS ({{ inventory_hostname }})
+          Topics found: {{ topic_list.stdout_lines | join(', ') }}
+          {% for r in topic_counts.results %}
+          Topic '{{ r.item }}' message count: {{ r.stdout | default('0') }}
+          {% endfor %}
+          Consumer group 'app-svc' status:
+          {{ consumer_group_detail.stdout | default('No consumer group found') }}
+          {% if dlq_sample is defined and dlq_sample.stdout is defined %}
+          DLQ sample messages (payments.dlq):
+          {{ dlq_sample.stdout }}
+          {% endif %}
+
+    - name: Display report
       ansible.builtin.debug:
-        msg: "WARNING: Consumer lag detected — manual review recommended"
-      when: alert_on_lag | default(false) | bool
+        msg: "{{ kafka_report }}"
+
+    - name: Publish findings for downstream workflow nodes
+      ansible.builtin.set_stats:
+        data:
+          kafka_diagnostics: "{{ kafka_report }}"

@@ -11,6 +11,13 @@
 
   tasks:
 
+    - name: Aggregate diagnostic reports from upstream nodes
+      ansible.builtin.set_fact:
+        full_diagnostics: |-
+          {{ kafka_diagnostics | default('') }}
+          {{ application_diagnostics | default('') }}
+          {{ storage_diagnostics | default('') }}
+
     - name: Build root cause analysis query
       ansible.builtin.set_fact:
         rca_query: |-
@@ -27,7 +34,7 @@
           Incident: {{ incident_description | default('No incident description provided.') }}
 
           Diagnostics output:
-          {{ diagnostics_report | default('No diagnostics report available.') }}
+          {{ full_diagnostics }}
 
           Affected components: {{ service_components | default([]) | join(', ') }}
 

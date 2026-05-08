@@ -1,32 +1,84 @@
 ---
 - name: Check Application Health
-  hosts: "{{ target_hosts | default('app_servers') }}"
+  hosts: all
   become: true
-  gather_facts: true
+  gather_facts: false
   tasks:
-    - name: Check service is running
+    - name: Check payment-svc service status
       ansible.builtin.systemd:
-        name: "{{ app_service_name | default('app-svc') }}"
-      register: svc_status
-
-    - name: Verify health endpoint responds
-      ansible.builtin.uri:
-        url: "http://localhost:{{ app_port | default(5000) }}/health"
-        status_code: 200
-        timeout: 10
-      register: health_check
+        name: payment-svc
+      register: payment_svc_status
       ignore_errors: true
+      when: "'payment' in inventory_hostname"
 
-    - name: Check application log for recent errors
+    - name: Check app-svc service status
+      ansible.builtin.systemd:
+        name: app-svc
+      register: app_svc_status
+      ignore_errors: true
+      when: "'app-svc' in inventory_hostname"
+
+    - name: Check payment-svc health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:5000/health"
+        timeout: 5
+      register: payment_health
+      ignore_errors: true
+      when: "'payment' in inventory_hostname"
+
+    - name: Check app-svc health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:5001/health"
+        timeout: 5
+      register: app_health
+      ignore_errors: true
+      when: "'app-svc' in inventory_hostname"
+
+    - name: Get payment-svc routing configuration
       ansible.builtin.shell:
-        cmd: journalctl -u {{ app_service_name | default('app-svc') }} --since "15 min ago" --no-pager | grep -c ERROR || echo 0
-      register: error_count
+        cmd: cat /opt/payment-svc/config.py 2>/dev/null || echo "config not found"
+      register: routing_config
       changed_when: false
+      when: "'payment' in inventory_hostname"
 
-    - name: Report health summary
+    - name: Check recent payment-svc errors
+      ansible.builtin.shell:
+        cmd: journalctl -u payment-svc --since "30 min ago" --no-pager 2>/dev/null | grep -i "error\|fail\|exception" | tail -10 || echo "no recent errors"
+      register: payment_errors
+      changed_when: false
+      when: "'payment' in inventory_hostname"
+
+    - name: Check recent app-svc errors
+      ansible.builtin.shell:
+        cmd: journalctl -u app-svc --since "30 min ago" --no-pager 2>/dev/null | grep -i "error\|fail\|exception" | tail -10 || echo "no recent errors"
+      register: app_errors
+      changed_when: false
+      when: "'app-svc' in inventory_hostname"
+
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        app_report: |
+          APPLICATION DIAGNOSTICS ({{ inventory_hostname }})
+          {% if payment_svc_status is defined and payment_svc_status is not skipped %}
+          payment-svc systemd state: {{ payment_svc_status.status.ActiveState | default('unknown') }}
+          payment-svc health endpoint: {{ payment_health.status | default('unreachable') }}
+          payment-svc routing config:
+          {{ routing_config.stdout | default('unavailable') }}
+          payment-svc recent errors:
+          {{ payment_errors.stdout | default('none') }}
+          {% endif %}
+          {% if app_svc_status is defined and app_svc_status is not skipped %}
+          app-svc systemd state: {{ app_svc_status.status.ActiveState | default('unknown') }}
+          app-svc health endpoint: {{ app_health.status | default('unreachable') }}
+          app-svc recent errors:
+          {{ app_errors.stdout | default('none') }}
+          {% endif %}
+
+    - name: Display report
       ansible.builtin.debug:
-        msg: >-
-          Host={{ inventory_hostname }}
-          service_active={{ svc_status.status.ActiveState | default('unknown') }}
-          health_http={{ health_check.status | default('failed') }}
-          recent_errors={{ error_count.stdout | default('unknown') }}
+        msg: "{{ app_report }}"
+
+    - name: Publish findings for downstream workflow nodes
+      ansible.builtin.set_stats:
+        data:
+          application_diagnostics: "{{ app_report }}"
