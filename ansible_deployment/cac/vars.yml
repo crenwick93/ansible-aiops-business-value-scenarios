@@ -180,12 +180,12 @@ controller_hosts:
     variables:
       ansible_host: "{{ app_svc_ip | default('10.0.1.16') }}"
       ansible_user: ec2-user
-  - name: "kafka"
+  - name: "kafka-payment-queue"
     inventory: "All Services"
     variables:
       ansible_host: "{{ kafka_ip | default('10.0.2.30') }}"
       ansible_user: ec2-user
-  - name: "postgres"
+  - name: "postgres-app-db"
     inventory: "All Services"
     variables:
       ansible_host: "{{ postgres_ip | default('10.0.3.61') }}"
@@ -204,7 +204,7 @@ controller_hosts:
       ansible_user: ec2-user
 
   # Middleware Services
-  - name: "kafka"
+  - name: "kafka-payment-queue"
     inventory: "Middleware Hosts"
     variables:
       ansible_host: "{{ kafka_ip | default('10.0.2.30') }}"
@@ -221,19 +221,19 @@ controller_hosts:
     variables:
       ansible_host: "{{ app_svc_ip | default('10.0.1.16') }}"
       ansible_user: ec2-user
-  - name: "kafka"
+  - name: "kafka-payment-queue"
     inventory: "Storage Hosts"
     variables:
       ansible_host: "{{ kafka_ip | default('10.0.2.30') }}"
       ansible_user: ec2-user
-  - name: "postgres"
+  - name: "postgres-app-db"
     inventory: "Storage Hosts"
     variables:
       ansible_host: "{{ postgres_ip | default('10.0.3.61') }}"
       ansible_user: ec2-user
 
   # Database Services
-  - name: "postgres"
+  - name: "postgres-app-db"
     inventory: "Database Hosts"
     variables:
       ansible_host: "{{ postgres_ip | default('10.0.3.61') }}"

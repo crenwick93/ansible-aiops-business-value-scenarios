@@ -24,7 +24,7 @@ components:
       owned_by_group: "Service Reliability"
       version: "1.4.2"
 
-  - name: payment-queue
+  - name: kafka-payment-queue
     ci_class: cmdb_ci_messaging_server
     description: "[aiops-demo] Apache Kafka broker (KRaft) — payments message bus"
     attributes:
@@ -42,7 +42,7 @@ components:
       owned_by_group: "Service Reliability"
       version: "1.2.0"
 
-  - name: app-db
+  - name: postgres-app-db
     ci_class: cmdb_ci_db_instance
     description: "[aiops-demo] PostgreSQL 16 — passports application database"
     attributes:
@@ -61,7 +61,7 @@ relationships:
     type: "Contains::Used by"
 
   - parent: business_service
-    child: payment-queue
+    child: kafka-payment-queue
     type: "Contains::Used by"
 
   - parent: business_service
@@ -69,17 +69,17 @@ relationships:
     type: "Contains::Used by"
 
   - parent: business_service
-    child: app-db
+    child: postgres-app-db
     type: "Contains::Used by"
 
   - parent: payment-svc
-    child: payment-queue
+    child: kafka-payment-queue
     type: "Sends data to::Receives data from"
 
-  - parent: payment-queue
+  - parent: kafka-payment-queue
     child: app-svc
     type: "Provides data to::Depends on"
 
   - parent: app-svc
-    child: app-db
+    child: postgres-app-db
     type: "Uses::Used by"
