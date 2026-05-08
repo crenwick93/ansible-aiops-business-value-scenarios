@@ -10,7 +10,7 @@
         sys_id: "{{ incident_sys_id }}"
         state: in_progress
         other:
-          work_notes: "{{ alia_analysis | default('No analysis available.') }}"
+          work_notes: "[code]{{ alia_analysis | default('No analysis available.') }}[/code]"
       register: updated_incident
 
     - name: Confirm update
