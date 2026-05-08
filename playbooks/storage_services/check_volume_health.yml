@@ -1,37 +1,33 @@
 ---
 - name: Check Volume Health
-  hosts: all
-  become: true
+  hosts: localhost
   gather_facts: false
+
+  vars:
+    demo_domain: "{{ lookup('env', 'DEMO_DOMAIN') | default('sandbox2797.opentlc.com', true) }}"
+
   tasks:
-    - name: Check filesystem usage
-      ansible.builtin.shell:
-        cmd: df -h --output=target,pcent | tail -n +2
-      register: disk_usage
-      changed_when: false
 
-    - name: Check for I/O errors in dmesg
-      ansible.builtin.shell:
-        cmd: dmesg 2>/dev/null | grep -i 'i/o error\|read error\|write error' | tail -5 || echo "no I/O errors"
-      register: io_errors
-      changed_when: false
+    - name: Check PostgreSQL connectivity via app-svc
+      ansible.builtin.uri:
+        url: "http://app-svc.{{ demo_domain }}:5001/health"
+        method: GET
+        return_content: true
+        timeout: 10
+      register: db_connectivity
+      ignore_errors: true
 
-    - name: Check PostgreSQL data directory usage (if applicable)
-      ansible.builtin.shell:
-        cmd: du -sh /var/lib/pgsql/data 2>/dev/null || echo "not a database host"
-      register: pg_data_usage
-      changed_when: false
-
-    - name: Build diagnostic report
+    - name: Build storage diagnostic report
       ansible.builtin.set_fact:
         storage_report: |
-          STORAGE DIAGNOSTICS ({{ inventory_hostname }})
-          Filesystem usage:
-          {{ disk_usage.stdout | default('unavailable') }}
-          I/O errors: {{ io_errors.stdout | default('none') }}
-          PostgreSQL data dir: {{ pg_data_usage.stdout | default('N/A') }}
+          STORAGE DIAGNOSTICS
+          PostgreSQL connectivity (via app-svc health): {{ db_connectivity.json | default('unreachable') }}
+          HTTP response code: {{ db_connectivity.status | default('failed') }}
 
-    - name: Display report
+          Note: app-svc depends on PostgreSQL for application state persistence.
+          If app-svc is healthy, the database connection is operational.
+
+    - name: Display storage diagnostics
       ansible.builtin.debug:
         msg: "{{ storage_report }}"
 

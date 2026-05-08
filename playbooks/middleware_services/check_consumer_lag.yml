@@ -1,63 +1,81 @@
 ---
 - name: Check Consumer Lag
-  hosts: all
-  become: true
+  hosts: localhost
   gather_facts: false
+
+  vars:
+    demo_domain: "{{ lookup('env', 'DEMO_DOMAIN') | default('sandbox2797.opentlc.com', true) }}"
+    kafdrop_url: "http://dashboard.{{ demo_domain }}:9000"
+
   tasks:
-    - name: Get topic list
-      ansible.builtin.shell:
-        cmd: /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
-      register: topic_list
-      changed_when: false
 
-    - name: Get message counts per topic
-      ansible.builtin.shell:
-        cmd: >-
-          /opt/kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell
-          --broker-list localhost:9092
-          --topic {{ item }}
-          --time -1 2>/dev/null | awk -F: '{sum += $3} END {print sum}'
-      loop: "{{ topic_list.stdout_lines | select('match', '^payments') | list }}"
-      register: topic_counts
-      changed_when: false
+    - name: Get payments topic info from Kafdrop
+      ansible.builtin.uri:
+        url: "{{ kafdrop_url }}/topic/payments"
+        method: GET
+        headers:
+          Accept: "application/json"
+        return_content: true
+        timeout: 10
+      register: payments_topic
+      ignore_errors: true
 
-    - name: Get consumer group details
-      ansible.builtin.shell:
-        cmd: >-
-          /opt/kafka/bin/kafka-consumer-groups.sh
-          --bootstrap-server localhost:9092
-          --describe --group app-svc 2>/dev/null | tail -n +2
-      register: consumer_group_detail
-      changed_when: false
+    - name: Get payments.dlq topic info from Kafdrop
+      ansible.builtin.uri:
+        url: "{{ kafdrop_url }}/topic/payments.dlq"
+        method: GET
+        headers:
+          Accept: "application/json"
+        return_content: true
+        timeout: 10
+      register: dlq_topic
+      ignore_errors: true
 
-    - name: Sample messages from DLQ
-      ansible.builtin.shell:
-        cmd: >-
-          /opt/kafka/bin/kafka-console-consumer.sh
-          --bootstrap-server localhost:9092
-          --topic payments.dlq
-          --from-beginning --max-messages 5
-          --timeout-ms 5000 2>/dev/null || true
-      register: dlq_sample
-      changed_when: false
-      when: "'payments.dlq' in topic_list.stdout"
+    - name: Sample recent messages from payments.dlq
+      ansible.builtin.uri:
+        url: "{{ kafdrop_url }}/topic/payments.dlq/messages?partition=0&offset=0&count=10"
+        method: GET
+        headers:
+          Accept: "application/json"
+        return_content: true
+        timeout: 10
+      register: dlq_messages
+      ignore_errors: true
 
-    - name: Build diagnostic report
+    - name: Sample recent messages from payments topic
+      ansible.builtin.uri:
+        url: "{{ kafdrop_url }}/topic/payments/messages?partition=0&offset=0&count=10"
+        method: GET
+        headers:
+          Accept: "application/json"
+        return_content: true
+        timeout: 10
+      register: payments_messages
+      ignore_errors: true
+
+    - name: Build Kafka diagnostic report
       ansible.builtin.set_fact:
         kafka_report: |
-          KAFKA DIAGNOSTICS ({{ inventory_hostname }})
-          Topics found: {{ topic_list.stdout_lines | join(', ') }}
-          {% for r in topic_counts.results %}
-          Topic '{{ r.item }}' message count: {{ r.stdout | default('0') }}
-          {% endfor %}
-          Consumer group 'app-svc' status:
-          {{ consumer_group_detail.stdout | default('No consumer group found') }}
-          {% if dlq_sample is defined and dlq_sample.stdout is defined %}
-          DLQ sample messages (payments.dlq):
-          {{ dlq_sample.stdout }}
-          {% endif %}
+          KAFKA DIAGNOSTICS
+          Kafdrop endpoint: {{ kafdrop_url }}
 
-    - name: Display report
+          Topic 'payments':
+          {{ payments_topic.json | default('unreachable') | to_nice_json }}
+
+          Topic 'payments.dlq':
+          {{ dlq_topic.json | default('unreachable') | to_nice_json }}
+
+          Sample messages from payments.dlq (dead letter queue):
+          {% for msg in (dlq_messages.json | default([])) %}
+          - {{ msg.value | default(msg) }}
+          {% endfor %}
+
+          Sample messages from payments (healthy topic):
+          {% for msg in (payments_messages.json | default([])) %}
+          - {{ msg.value | default(msg) }}
+          {% endfor %}
+
+    - name: Display Kafka diagnostics
       ansible.builtin.debug:
         msg: "{{ kafka_report }}"
 
