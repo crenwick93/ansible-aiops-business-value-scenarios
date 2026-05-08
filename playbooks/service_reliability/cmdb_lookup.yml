@@ -55,9 +55,9 @@
     - name: Display resolved service graph
       ansible.builtin.debug:
         msg: |
-          Business service components resolved from CMDB:
+          Service components resolved from CMDB:
           {% for ci in component_details %}
-            - {{ ci.name }} ({{ ci.sys_class_name }}) — IP: {{ ci.ip_address | default('N/A') }}
+            - {{ ci.name }} ({{ ci.sys_class_name }})
           {% endfor %}
 
     - name: Publish service component data for downstream workflow steps
