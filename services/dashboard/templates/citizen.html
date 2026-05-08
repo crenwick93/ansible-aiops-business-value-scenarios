@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Check your passport application — Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: "GDS Transport", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: #0b0c0c;
+      background: #f3f2f1;
+    }
+
+    .govuk-header {
+      background: #0b0c0c;
+      padding: 10px 0;
+      border-bottom: 10px solid #1d70b8;
+    }
+    .govuk-header__container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .govuk-header__crown {
+      width: 32px;
+      height: 28px;
+      fill: white;
+    }
+    .govuk-header__title {
+      color: white;
+      font-size: 24px;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .govuk-phase-banner {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 10px 20px;
+      border-bottom: 1px solid #b1b4b6;
+      background: #f3f2f1;
+    }
+    .govuk-phase-banner__tag {
+      background: #1d70b8;
+      color: white;
+      padding: 2px 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .govuk-phase-banner__text {
+      font-size: 14px;
+      margin-left: 10px;
+      color: #505a5f;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 30px 20px 60px;
+    }
+
+    h1 {
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 20px;
+      color: #0b0c0c;
+    }
+    h2 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 15px;
+    }
+
+    p { margin-bottom: 15px; color: #505a5f; }
+
+    .govuk-form-group { margin-bottom: 20px; }
+
+    label {
+      display: block;
+      font-size: 19px;
+      font-weight: 700;
+      margin-bottom: 5px;
+      color: #0b0c0c;
+    }
+    .govuk-hint {
+      font-size: 16px;
+      color: #505a5f;
+      margin-bottom: 10px;
+    }
+
+    input[type="text"] {
+      font-family: inherit;
+      font-size: 19px;
+      padding: 8px 10px;
+      border: 2px solid #0b0c0c;
+      width: 100%;
+      max-width: 320px;
+    }
+    input[type="text"]:focus {
+      outline: 3px solid #fd0;
+      outline-offset: 0;
+      box-shadow: inset 0 0 0 2px #0b0c0c;
+    }
+
+    .govuk-button {
+      font-family: inherit;
+      font-size: 19px;
+      font-weight: 700;
+      padding: 10px 20px;
+      background: #00703c;
+      color: white;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 0 #002d18;
+      margin-top: 10px;
+    }
+    .govuk-button:hover { background: #005a30; }
+    .govuk-button:active {
+      box-shadow: none;
+      transform: translateY(2px);
+    }
+
+    .result-panel {
+      background: white;
+      border-left: 5px solid #1d70b8;
+      padding: 25px 30px;
+      margin-top: 30px;
+      display: none;
+    }
+    .result-panel.visible { display: block; }
+    .result-panel.not-found { border-left-color: #d4351c; }
+
+    .status-tracker {
+      display: flex;
+      gap: 0;
+      margin: 25px 0;
+      position: relative;
+    }
+    .status-step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      padding-top: 40px;
+      font-size: 14px;
+      color: #505a5f;
+    }
+    .status-step::before {
+      content: "";
+      position: absolute;
+      top: 12px;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #b1b4b6;
+    }
+    .status-step:first-child::before { left: 50%; }
+    .status-step:last-child::before { right: 50%; }
+    .status-step::after {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #b1b4b6;
+      border: 3px solid #f3f2f1;
+      z-index: 1;
+    }
+    .status-step.completed::before { background: #00703c; }
+    .status-step.completed::after { background: #00703c; }
+    .status-step.current::after {
+      background: #1d70b8;
+      width: 24px;
+      height: 24px;
+      top: 2px;
+    }
+    .status-step.current { color: #0b0c0c; font-weight: 700; }
+
+    .detail-row {
+      display: flex;
+      border-bottom: 1px solid #b1b4b6;
+      padding: 12px 0;
+    }
+    .detail-label {
+      flex: 0 0 200px;
+      font-weight: 700;
+      color: #0b0c0c;
+    }
+    .detail-value { color: #0b0c0c; }
+
+    .warning-text {
+      color: #d4351c;
+      font-weight: 700;
+      margin-top: 15px;
+      padding: 15px;
+      border: 3px solid #d4351c;
+      background: #fef7f7;
+    }
+
+    .info-text {
+      color: #1d70b8;
+      margin-top: 15px;
+      padding: 15px;
+      border-left: 4px solid #1d70b8;
+      background: #f0f4f9;
+    }
+
+    .error-msg {
+      color: #d4351c;
+      font-weight: 700;
+      margin-top: 10px;
+    }
+
+    .govuk-footer {
+      background: #f3f2f1;
+      border-top: 1px solid #b1b4b6;
+      padding: 20px 0;
+      margin-top: 60px;
+    }
+    .govuk-footer__container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 20px;
+      color: #505a5f;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="govuk-header">
+    <div class="govuk-header__container">
+      <svg class="govuk-header__crown" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L4 7v6c0 5.5 3.4 10.7 8 12 4.6-1.3 8-6.5 8-12V7l-8-5z" fill="currentColor"/>
+      </svg>
+      <a href="/" class="govuk-header__title">DEMO - HM Passport Office</a>
+    </div>
+  </header>
+
+  <div class="govuk-phase-banner">
+    <span class="govuk-phase-banner__tag">Demo</span>
+    <span class="govuk-phase-banner__text">This is a simulated service for demonstration purposes only</span>
+  </div>
+
+  <main>
+    <h1>Check your passport application</h1>
+    <p>Use your application reference number to check the current status of your passport application.</p>
+
+    <div class="govuk-form-group">
+      <label for="ref-input">Application reference number</label>
+      <div class="govuk-hint">This is the reference you received when you submitted your application, for example CIT-AB1234 or CZ-00042</div>
+      <input type="text" id="ref-input" placeholder="e.g. CZ-00042" autocomplete="off">
+    </div>
+    <button class="govuk-button" id="lookup-btn">Check status</button>
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="result-panel" id="result-panel">
+      <h2 id="result-title"></h2>
+
+      <div class="status-tracker" id="status-tracker"></div>
+
+      <div id="details-section">
+        <div class="detail-row">
+          <div class="detail-label">Reference</div>
+          <div class="detail-value" id="d-ref"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Application type</div>
+          <div class="detail-value" id="d-type"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Current status</div>
+          <div class="detail-value" id="d-status"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Date submitted</div>
+          <div class="detail-value" id="d-submitted"></div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">Last updated</div>
+          <div class="detail-value" id="d-updated"></div>
+        </div>
+      </div>
+
+      <div id="waiting-warning"></div>
+      <div id="info-message"></div>
+    </div>
+
+    <div class="result-panel not-found" id="not-found-panel">
+      <h2>Application not found</h2>
+      <p>We could not find an application with the reference number <strong id="nf-ref"></strong>.</p>
+      <p>Check you have entered it correctly. If you continue to have problems, contact the support team.</p>
+    </div>
+  </main>
+
+  <footer class="govuk-footer">
+    <div class="govuk-footer__container">
+      Passport Application Service &mdash; Demo environment &mdash; Not a real government service
+    </div>
+  </footer>
+
+  <script>
+    const refInput = document.getElementById('ref-input');
+    const lookupBtn = document.getElementById('lookup-btn');
+    const errorMsg = document.getElementById('error-msg');
+    const resultPanel = document.getElementById('result-panel');
+    const notFoundPanel = document.getElementById('not-found-panel');
+
+    function formatDate(iso) {
+      const d = new Date(iso);
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    async function lookup() {
+      const ref = refInput.value.trim();
+      if (!ref) {
+        errorMsg.textContent = 'Enter your application reference number';
+        return;
+      }
+      errorMsg.textContent = '';
+      resultPanel.classList.remove('visible');
+      notFoundPanel.classList.remove('visible');
+
+      try {
+        const resp = await fetch(`/api/citizen/lookup?ref=${encodeURIComponent(ref)}`);
+        const data = await resp.json();
+
+        if (data.error) {
+          errorMsg.textContent = data.error;
+          return;
+        }
+
+        if (!data.found) {
+          document.getElementById('nf-ref').textContent = ref;
+          notFoundPanel.classList.add('visible');
+          return;
+        }
+
+        document.getElementById('result-title').textContent = `Application ${data.ref}`;
+        document.getElementById('d-ref').textContent = data.ref;
+        document.getElementById('d-type').textContent = data.fee_type;
+        document.getElementById('d-status').textContent = data.status;
+        document.getElementById('d-submitted').textContent = formatDate(data.submitted);
+        document.getElementById('d-updated').textContent = formatDate(data.last_updated);
+
+        const tracker = document.getElementById('status-tracker');
+        tracker.innerHTML = '';
+        data.steps.forEach((step, i) => {
+          const div = document.createElement('div');
+          div.className = 'status-step';
+          if (i < data.current_step) div.classList.add('completed');
+          if (i === data.current_step) div.classList.add('current');
+          div.textContent = step;
+          tracker.appendChild(div);
+        });
+
+        const warningDiv = document.getElementById('waiting-warning');
+        const infoDiv = document.getElementById('info-message');
+        warningDiv.innerHTML = '';
+        infoDiv.innerHTML = '';
+
+        if (data.days_since_update > 3 && data.status_raw === 'paid_pending_processing') {
+          warningDiv.innerHTML = `<div class="warning-text">Your payment was received ${data.days_since_update} days ago but your application has not yet progressed. If this continues, please contact the support team.</div>`;
+        } else if (data.days_since_update > 5 && data.status_raw === 'awaiting_payment') {
+          warningDiv.innerHTML = `<div class="warning-text">Your application has been awaiting payment for ${data.days_since_update} days. If you have already paid, please contact the support team.</div>`;
+        } else if (data.status_raw === 'complete') {
+          infoDiv.innerHTML = '<div class="info-text">Your passport has been processed and dispatched. Please allow 5 working days for delivery.</div>';
+        } else if (data.status_raw === 'processing') {
+          infoDiv.innerHTML = '<div class="info-text">Your application is being processed. We aim to complete standard applications within 3 weeks.</div>';
+        }
+
+        resultPanel.classList.add('visible');
+      } catch (e) {
+        errorMsg.textContent = 'Unable to check your application. Please try again later.';
+      }
+    }
+
+    lookupBtn.addEventListener('click', lookup);
+    refInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') lookup(); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+---
+# Rollback Service Configuration
+#
+# Reconciles a live service configuration with its declared state in source
+# control. Pulls the known-good config from the Git repository, replaces the
+# drifted file on the target host, restarts the service, and verifies health.
+#
+# Variables:
+#   target_hosts    — host or group to target
+#   service_name    — systemd service to restart after rollback
+#   config_path     — absolute path to the config file on the target host
+#   repo_config_path — path to the known-good config relative to repo root
+#   health_port     — (optional) port to verify after restart (default: 5000)
+#   git_ref         — (optional) branch/tag to pull from (default: main)
+
+- name: Rollback Service Configuration
+  hosts: "{{ target_hosts }}"
+  become: true
+  vars:
+    git_ref: "main"
+    health_port: 5000
+  tasks:
+    - name: Validate required parameters
+      ansible.builtin.assert:
+        that:
+          - config_path is defined
+          - repo_config_path is defined
+          - service_name is defined
+        fail_msg: "Required: config_path, repo_config_path, service_name"
+
+    - name: Capture current config for audit trail
+      ansible.builtin.slurp:
+        src: "{{ config_path }}"
+      register: live_config
+
+    - name: Fetch declared config from source control
+      ansible.builtin.uri:
+        url: "https://raw.githubusercontent.com/crenwick93/ansible-aiops-business-value-scenarios/{{ git_ref }}/{{ repo_config_path }}"
+        return_content: true
+      register: declared_config
+      delegate_to: localhost
+      become: false
+
+    - name: Check for configuration drift
+      ansible.builtin.set_fact:
+        config_has_drifted: "{{ (live_config.content | b64decode) != declared_config.content }}"
+
+    - name: Report drift status
+      ansible.builtin.debug:
+        msg: "{{ 'DRIFT DETECTED — live config differs from declared state in Git' if config_has_drifted else 'No drift — config matches source of truth' }}"
+
+    - name: Backup current (drifted) config
+      ansible.builtin.copy:
+        src: "{{ config_path }}"
+        dest: "{{ config_path }}.drifted.{{ ansible_date_time.iso8601_basic_short }}"
+        remote_src: true
+      when: config_has_drifted
+
+    - name: Restore config to declared state
+      ansible.builtin.copy:
+        content: "{{ declared_config.content }}"
+        dest: "{{ config_path }}"
+        mode: "0644"
+      when: config_has_drifted
+      register: config_restored
+
+    - name: Restart service to apply restored configuration
+      ansible.builtin.systemd:
+        name: "{{ service_name }}"
+        state: restarted
+      when: config_restored is changed
+
+    - name: Wait for service readiness
+      ansible.builtin.wait_for:
+        port: "{{ health_port }}"
+        delay: 3
+        timeout: 30
+      when: config_restored is changed
+
+    - name: Verify config now matches declared state
+      ansible.builtin.slurp:
+        src: "{{ config_path }}"
+      register: final_config
+
+    - name: Assert reconciliation complete
+      ansible.builtin.assert:
+        that:
+          - "(final_config.content | b64decode) == declared_config.content"
+        success_msg: "Configuration reconciled — {{ service_name }} now matches declared state ({{ git_ref }})"
+        fail_msg: "Reconciliation failed — config still differs from source of truth"

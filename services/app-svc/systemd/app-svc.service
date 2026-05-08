@@ -1,0 +1,18 @@
+[Unit]
+Description=Application processing service (AIOps demo)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/app-svc
+Environment=KAFKA_BOOTSTRAP=localhost:9092
+Environment=DATABASE_URL=postgresql://passports_user:passports_pass@localhost:5432/passports
+EnvironmentFile=-/etc/app-svc.env
+ExecStart=/opt/app-svc/venv/bin/gunicorn -b 0.0.0.0:5001 -w 1 app:app
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

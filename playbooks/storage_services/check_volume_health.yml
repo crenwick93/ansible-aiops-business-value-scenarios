@@ -1,0 +1,37 @@
+---
+- name: Check Volume Health
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Check filesystem usage
+      ansible.builtin.shell:
+        cmd: df -h --output=target,pcent | tail -n +2
+      register: disk_usage
+      changed_when: false
+
+    - name: Check for read-only filesystems
+      ansible.builtin.shell:
+        cmd: mount | grep -E '\bro\b' | grep -v 'snap\|squashfs' || echo "none"
+      register: ro_mounts
+      changed_when: false
+
+    - name: Check inode usage
+      ansible.builtin.shell:
+        cmd: df -i --output=target,ipcent | tail -n +2
+      register: inode_usage
+      changed_when: false
+
+    - name: Check for I/O errors in dmesg
+      ansible.builtin.shell:
+        cmd: dmesg | grep -i 'i/o error\|read error\|write error' | tail -5 || echo "none"
+      register: io_errors
+      changed_when: false
+
+    - name: Report volume health summary
+      ansible.builtin.debug:
+        msg: >-
+          Host={{ inventory_hostname }}
+          filesystem_usage={{ disk_usage.stdout_lines | length }} mounts checked
+          readonly_mounts={{ ro_mounts.stdout | trim }}
+          io_errors={{ io_errors.stdout | trim }}

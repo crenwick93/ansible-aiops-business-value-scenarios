@@ -1,0 +1,34 @@
+---
+- name: Check Consumer Lag
+  hosts: "{{ target_hosts | default('kafka_brokers') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: List all consumer groups
+      ansible.builtin.shell:
+        cmd: /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --list
+      register: consumer_groups
+      changed_when: false
+
+    - name: Check lag for each group
+      ansible.builtin.shell:
+        cmd: >-
+          /opt/kafka/bin/kafka-consumer-groups.sh
+          --bootstrap-server localhost:9092
+          --describe --group {{ item }}
+          2>/dev/null | tail -n +2
+      loop: "{{ consumer_groups.stdout_lines }}"
+      register: lag_results
+      changed_when: false
+      when: consumer_groups.stdout_lines | length > 0
+
+    - name: Report consumer lag summary
+      ansible.builtin.debug:
+        msg: "Group={{ item.item }} lag_output={{ item.stdout_lines | default([]) | length }} partitions tracked"
+      loop: "{{ lag_results.results | default([]) }}"
+      when: lag_results.results is defined
+
+    - name: Alert if lag exceeds threshold
+      ansible.builtin.debug:
+        msg: "WARNING: Consumer lag detected — manual review recommended"
+      when: alert_on_lag | default(false) | bool

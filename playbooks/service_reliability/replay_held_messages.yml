@@ -1,0 +1,223 @@
+---
+# replay_held_messages.yml — Generic message replay from a holding area
+#
+# PURPOSE (demo context):
+#   This is a GENERIC remediation playbook.  It replays messages from any
+#   source topic to any target topic, filtered by routing key, in controlled
+#   batches.  It is NOT "replay the passport bug" — it is a routine ops
+#   capability that exists independently of any specific incident.
+#
+#   ALIA's contribution is the PARAMETERS, not the existence of this playbook.
+#   The playbook was already available as a remediation template.  ALIA
+#   analysed the diagnostics and determined WHICH source queue, WHICH routing
+#   key filter, and WHICH target queue to use.  A sharp customer will probe
+#   this distinction — the code structure and comments should make it obvious.
+#
+# PARAMETERS (all overridable with -e):
+#   source_queue        — Kafka topic to read held messages from
+#   routing_key_filter  — only replay messages whose fee_type matches this
+#   target_queue        — Kafka topic to republish messages to
+#   batch_size          — how many messages to process per batch
+#   inter_message_delay_seconds — pause between each replayed message (visual pacing)
+#   mode                — "dry-run" (report only) or "live" (actually replay)
+
+- name: "Replay held messages from {{ source_queue }} to {{ target_queue }}"
+  hosts: kafka
+  become: true
+  gather_facts: true
+
+  vars:
+    source_queue: "payments.dlq"
+    routing_key_filter: ""
+    target_queue: "payments"
+    batch_size: 1
+    mode: "dry-run"
+    kafka_admin_url: "http://localhost:8080"
+    inter_message_delay_seconds: 4
+
+  tasks:
+    - name: Validate mode parameter
+      ansible.builtin.assert:
+        that:
+          - mode in ['dry-run', 'live']
+        fail_msg: "mode must be 'dry-run' or 'live', got '{{ mode }}'"
+
+    - name: Display replay parameters
+      ansible.builtin.debug:
+        msg: |
+          Replay configuration:
+            Source queue:        {{ source_queue }}
+            Routing key filter:  {{ routing_key_filter | default('(none — all messages)') }}
+            Target queue:        {{ target_queue }}
+            Batch size:          {{ batch_size }}
+            Mode:                {{ mode }}
+
+    # -----------------------------------------------------------------
+    # Step 1: Assess the source queue
+    # -----------------------------------------------------------------
+    - name: Fetch current state of source queue
+      ansible.builtin.uri:
+        url: "{{ kafka_admin_url }}/topics"
+        method: GET
+        return_content: true
+      register: _topics
+
+    - name: Extract source queue depth
+      ansible.builtin.set_fact:
+        _source_depth: >-
+          {{ (_topics.json.topics | selectattr('name', 'equalto', source_queue) | list | first).message_count_approx | default(0) | int }}
+
+    - name: Report source queue state
+      ansible.builtin.debug:
+        msg: "Source queue '{{ source_queue }}' contains approximately {{ _source_depth }} messages"
+
+    - name: Abort if source queue is empty
+      ansible.builtin.meta: end_play
+      when: _source_depth | int == 0
+
+    # -----------------------------------------------------------------
+    # Step 2: Sample messages to preview what would be replayed
+    # -----------------------------------------------------------------
+    - name: Sample messages from source queue
+      ansible.builtin.uri:
+        url: "{{ kafka_admin_url }}/topics/{{ source_queue }}/messages?limit={{ batch_size }}"
+        method: GET
+        return_content: true
+        timeout: 30
+      register: _sample
+
+    - name: Filter messages by routing key
+      ansible.builtin.set_fact:
+        _matching_messages: >-
+          {%- set matches = [] -%}
+          {%- for msg in (_sample.json.messages | default([])) -%}
+            {%- set parsed = msg.value | default('{}') | from_json -%}
+            {%- if routing_key_filter | length == 0 or parsed.fee_type | default('') == routing_key_filter -%}
+              {%- set _ = matches.append(msg) -%}
+            {%- endif -%}
+          {%- endfor -%}
+          {{ matches }}
+
+    - name: Report matching messages
+      ansible.builtin.debug:
+        msg: >-
+          Found {{ _matching_messages | length }} messages matching
+          routing key '{{ routing_key_filter | default('*') }}'
+          in the sampled batch of {{ _sample.json.messages | default([]) | length }}
+
+    # -----------------------------------------------------------------
+    # Step 3: DRY-RUN — report what would happen
+    # -----------------------------------------------------------------
+    - name: "DRY-RUN: Show what would be replayed"
+      when: mode == 'dry-run'
+      block:
+        - name: Display replay preview
+          ansible.builtin.debug:
+            msg: |
+              === DRY-RUN PREVIEW ===
+              Would replay {{ _matching_messages | length }} messages
+              from '{{ source_queue }}' to '{{ target_queue }}'
+              filtered by routing key '{{ routing_key_filter | default('*') }}'
+
+              Sample message keys:
+              {% for msg in _matching_messages[:5] %}
+                - offset={{ msg.offset }} key={{ msg.key }}
+              {% endfor %}
+              {% if _matching_messages | length > 5 %}
+                ... and {{ _matching_messages | length - 5 }} more
+              {% endif %}
+
+              To execute this replay, run again with -e mode=live
+
+    # -----------------------------------------------------------------
+    # Step 4: LIVE — actually republish messages
+    # -----------------------------------------------------------------
+    - name: "LIVE: Replay messages to target queue"
+      when: mode == 'live'
+      block:
+        - name: Create replay script on Kafka host
+          ansible.builtin.copy:
+            dest: /tmp/replay_messages.py
+            mode: "0755"
+            content: |
+              #!/usr/bin/env python3
+              """Replay messages from one Kafka topic to another, filtered by routing key."""
+              import json
+              import sys
+              import time
+              from confluent_kafka import Consumer, Producer, KafkaError
+
+              SOURCE = "{{ source_queue }}"
+              TARGET = "{{ target_queue }}"
+              KEY_FILTER = "{{ routing_key_filter }}"
+              BATCH = int("{{ batch_size }}")
+              MSG_DELAY = float("{{ inter_message_delay_seconds }}")
+              BOOTSTRAP = "localhost:9092"
+
+              producer = Producer({"bootstrap.servers": BOOTSTRAP, "client.id": "replay-remediation"})
+              consumer = Consumer({
+                  "bootstrap.servers": BOOTSTRAP,
+                  "group.id": "replay-remediation",
+                  "auto.offset.reset": "earliest",
+                  "enable.auto.commit": False,
+              })
+              consumer.subscribe([SOURCE])
+
+              replayed = 0
+              skipped = 0
+              try:
+                  while True:
+                      msg = consumer.poll(2.0)
+                      if msg is None:
+                          if replayed > 0:
+                              break
+                          continue
+                      if msg.error():
+                          if msg.error().code() == KafkaError._PARTITION_EOF:
+                              break
+                          print(f"Error: {msg.error()}", file=sys.stderr)
+                          continue
+                      value = msg.value()
+                      if value is None:
+                          continue
+                      try:
+                          parsed = json.loads(value.decode("utf-8"))
+                      except (json.JSONDecodeError, UnicodeError):
+                          skipped += 1
+                          continue
+                      if KEY_FILTER and parsed.get("fee_type") != KEY_FILTER:
+                          skipped += 1
+                          continue
+                      producer.produce(TARGET, key=msg.key(), value=value)
+                      producer.flush(10)
+                      replayed += 1
+                      print(f"[{replayed}] Replayed citizen_ref={parsed.get('citizen_ref', '?')} to {TARGET}")
+                      time.sleep(MSG_DELAY)
+              finally:
+                  producer.flush(30)
+                  consumer.close()
+
+              print(f"Replay complete: {replayed} replayed, {skipped} skipped")
+              sys.exit(0)
+
+        - name: Execute replay
+          ansible.builtin.command:
+            cmd: python3 /tmp/replay_messages.py
+          register: _replay_result
+
+        - name: Display replay result
+          ansible.builtin.debug:
+            msg: "{{ _replay_result.stdout }}"
+
+        - name: Clean up replay script
+          ansible.builtin.file:
+            path: /tmp/replay_messages.py
+            state: absent
+
+    - name: Final summary
+      ansible.builtin.debug:
+        msg: >-
+          Replay {{ mode }} complete.
+          Source: {{ source_queue }},
+          Target: {{ target_queue }},
+          Filter: {{ routing_key_filter | default('none') }}

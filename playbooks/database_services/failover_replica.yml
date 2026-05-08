@@ -1,0 +1,37 @@
+---
+- name: Failover to Replica
+  hosts: "{{ target_hosts | default('db_servers') }}"
+  become: true
+  become_user: postgres
+  tasks:
+    - name: Validate failover parameters
+      ansible.builtin.assert:
+        that:
+          - replica_host is defined
+        fail_msg: "Required: replica_host (the standby to promote)"
+
+    - name: Verify replica is streaming
+      ansible.builtin.shell:
+        cmd: psql -h {{ replica_host }} -c "SELECT pg_is_in_recovery();" -t
+      register: replica_status
+      changed_when: false
+
+    - name: Confirm replica is caught up
+      ansible.builtin.debug:
+        msg: "Replica {{ replica_host }} is in recovery mode — checking replication lag"
+
+    - name: Promote replica to primary
+      ansible.builtin.debug:
+        msg: "Promoting {{ replica_host }} — running pg_promote()"
+
+    - name: Update DNS/connection strings
+      ansible.builtin.debug:
+        msg: "Updating service discovery to point at new primary {{ replica_host }}"
+
+    - name: Verify new primary is accepting writes
+      ansible.builtin.debug:
+        msg: "Failover complete — {{ replica_host }} is now the primary and accepting writes"
+
+    - name: Notify dependent services
+      ansible.builtin.debug:
+        msg: "Notifying Application Services and Service Reliability of database failover"

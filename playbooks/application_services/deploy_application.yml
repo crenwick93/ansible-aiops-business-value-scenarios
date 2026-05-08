@@ -1,0 +1,38 @@
+---
+- name: Deploy Application
+  hosts: "{{ target_hosts | default('app_servers') }}"
+  become: true
+  vars:
+    app_name: "{{ app_name | default('app-svc') }}"
+  tasks:
+    - name: Validate deployment parameters
+      ansible.builtin.assert:
+        that:
+          - app_version is defined
+          - deploy_env is defined
+        fail_msg: "Required variables: app_version, deploy_env"
+
+    - name: Stop application service
+      ansible.builtin.systemd:
+        name: "{{ app_name }}"
+        state: stopped
+
+    - name: Pull application artifact
+      ansible.builtin.debug:
+        msg: "Pulling {{ app_name }} version {{ app_version }} for {{ deploy_env }}"
+
+    - name: Apply database migrations
+      ansible.builtin.debug:
+        msg: "Running migrations for {{ app_name }}:{{ app_version }}"
+
+    - name: Start application service
+      ansible.builtin.systemd:
+        name: "{{ app_name }}"
+        state: started
+
+    - name: Verify health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port | default('5000') }}/health"
+        status_code: 200
+      retries: 5
+      delay: 3

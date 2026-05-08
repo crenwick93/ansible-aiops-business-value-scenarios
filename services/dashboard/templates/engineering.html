@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform Operations Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      color: #e0e0e0;
+      background: #1a1a2e;
+    }
+
+    .topbar {
+      background: #16213e;
+      padding: 12px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #0f3460;
+    }
+    .topbar h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+    .topbar .status-badge {
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .status-badge.operational {
+      background: rgba(0, 200, 83, 0.15);
+      color: #00c853;
+      border: 1px solid rgba(0, 200, 83, 0.3);
+    }
+    .status-badge.degraded {
+      background: rgba(255, 152, 0, 0.15);
+      color: #ff9800;
+      border: 1px solid rgba(255, 152, 0, 0.3);
+    }
+    .topbar .last-refresh {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      padding: 20px 24px;
+    }
+
+    .card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .card h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #888;
+      margin-bottom: 16px;
+    }
+
+    .service-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .service-row:last-child { border-bottom: none; }
+
+    .service-name {
+      font-weight: 600;
+      font-size: 15px;
+      color: #e0e0e0;
+    }
+    .service-meta {
+      font-size: 12px;
+      color: #666;
+    }
+
+    .health-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+    }
+    .health-dot.green {
+      background: #00c853;
+      box-shadow: 0 0 8px rgba(0, 200, 83, 0.5);
+    }
+    .health-dot.red {
+      background: #ff1744;
+      box-shadow: 0 0 8px rgba(255, 23, 68, 0.5);
+    }
+    .health-dot.amber {
+      background: #ff9800;
+      box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);
+    }
+
+    .health-label {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .health-label.green { color: #00c853; }
+    .health-label.red { color: #ff1744; }
+    .health-label.amber { color: #ff9800; }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .metric {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+      padding: 14px;
+      text-align: center;
+    }
+    .metric .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #e0e0e0;
+    }
+    .metric .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .kafka-topic {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .kafka-topic:last-child { border-bottom: none; }
+    .topic-name {
+      font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+      font-size: 13px;
+      color: #b0b0b0;
+    }
+    .topic-count {
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    .throughput-chart {
+      width: 100%;
+      height: 120px;
+      position: relative;
+      margin-top: 10px;
+    }
+    .throughput-chart canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .no-alerts {
+      text-align: center;
+      padding: 30px;
+      color: #444;
+    }
+    .no-alerts .icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    .no-alerts .text {
+      font-size: 14px;
+    }
+
+    .recent-deploy {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .recent-deploy:last-child { border-bottom: none; }
+    .deploy-time {
+      font-size: 11px;
+      color: #555;
+    }
+    .deploy-desc {
+      font-size: 14px;
+      color: #b0b0b0;
+    }
+
+    .card.full-width {
+      grid-column: 1 / -1;
+    }
+
+    .resource-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .resource-row:last-child { border-bottom: none; }
+    .resource-name {
+      flex: 0 0 100px;
+      font-size: 13px;
+      color: #b0b0b0;
+    }
+    .resource-bars {
+      flex: 1;
+      display: flex;
+      gap: 12px;
+    }
+    .bar-group {
+      flex: 1;
+    }
+    .bar-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #555;
+      margin-bottom: 3px;
+    }
+    .bar-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: #00c853;
+    }
+    .bar-fill.warn { background: #ff9800; }
+    .bar-fill.crit { background: #ff1744; }
+    .bar-value {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    .uptime-row {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .uptime-row:last-child { border-bottom: none; }
+    .uptime-svc {
+      flex: 0 0 100px;
+      font-size: 13px;
+      color: #b0b0b0;
+    }
+    .uptime-bars {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      gap: 1px;
+      align-items: center;
+    }
+    .uptime-bar {
+      flex: 1;
+      height: 18px;
+      border-radius: 2px;
+      background: #00c853;
+    }
+    .uptime-bar.down { background: #ff1744; }
+    .uptime-bar.partial { background: #ff9800; }
+    .uptime-pct {
+      flex: 0 0 55px;
+      text-align: right;
+      font-size: 12px;
+      font-weight: 600;
+      color: #00c853;
+    }
+
+    .rate-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .rate-row:last-child { border-bottom: none; }
+    .rate-svc { font-size: 13px; color: #b0b0b0; }
+    .rate-vals { display: flex; gap: 16px; }
+    .rate-val { text-align: center; }
+    .rate-val .rv-num { font-size: 16px; font-weight: 700; color: #e0e0e0; }
+    .rate-val .rv-label { font-size: 10px; text-transform: uppercase; color: #555; }
+
+    .oncall-person {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .oncall-person:last-child { border-bottom: none; }
+    .oncall-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #0f3460;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #00c853;
+      margin-right: 12px;
+    }
+    .oncall-name { font-size: 14px; color: #e0e0e0; }
+    .oncall-role { font-size: 11px; color: #555; }
+
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>Passport Application Service &mdash; Platform Operations</h1>
+    <div>
+      <span class="status-badge operational" id="platform-badge">All Systems Operational</span>
+    </div>
+    <span class="last-refresh">Last refresh: <span id="refresh-time">--</span> &nbsp; (auto-refreshes every 10s)</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- Service Health -->
+    <div class="card">
+      <h2>Service Health</h2>
+      <div id="service-list">
+        <div class="service-row"><span class="service-name">Loading...</span></div>
+      </div>
+    </div>
+
+    <!-- Database -->
+    <div class="card">
+      <h2>Database (PostgreSQL)</h2>
+      <div id="db-section">
+        <div class="metric-grid">
+          <div class="metric">
+            <div class="value health-label green" id="db-status">--</div>
+            <div class="label">Status</div>
+          </div>
+          <div class="metric">
+            <div class="value" id="db-latency">--</div>
+            <div class="label">Latency (ms)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kafka -->
+    <div class="card">
+      <h2>Message Bus (Kafka)</h2>
+      <div id="kafka-status-row" class="service-row" style="margin-bottom: 12px;">
+        <span class="service-name">Broker</span>
+        <span><span class="health-dot green" id="kafka-dot"></span><span class="health-label green" id="kafka-label">Healthy</span></span>
+      </div>
+      <div class="metric-grid" id="kafka-metrics">
+        <div class="metric">
+          <div class="value" id="kafka-brokers">1</div>
+          <div class="label">Brokers</div>
+        </div>
+        <div class="metric">
+          <div class="value" id="kafka-topics-count">--</div>
+          <div class="label">Topics</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div class="card">
+      <h2>Active Alerts</h2>
+      <div class="no-alerts" id="alerts-section">
+        <div class="icon">&#10003;</div>
+        <div class="text">No active alerts</div>
+      </div>
+    </div>
+
+    <!-- Resource Utilisation -->
+    <div class="card">
+      <h2>Resource Utilisation</h2>
+      <div id="resources-section"></div>
+    </div>
+
+    <!-- 30-Day Uptime -->
+    <div class="card">
+      <h2>Uptime (30 days)</h2>
+      <div id="uptime-section"></div>
+    </div>
+
+    <!-- Request Rate & Error Rate -->
+    <div class="card">
+      <h2>Traffic &amp; Errors</h2>
+      <div id="rates-section"></div>
+    </div>
+
+    <!-- On-Call -->
+    <div class="card">
+      <h2>On-Call</h2>
+      <div class="oncall-person">
+        <div class="oncall-avatar">JC</div>
+        <div><div class="oncall-name">James Carter</div><div class="oncall-role">Primary &mdash; Service Reliability</div></div>
+      </div>
+      <div class="oncall-person">
+        <div class="oncall-avatar">SP</div>
+        <div><div class="oncall-name">Sarah Patel</div><div class="oncall-role">Secondary &mdash; Service Reliability</div></div>
+      </div>
+    </div>
+
+    <!-- Recent Deployments -->
+    <div class="card">
+      <h2>Recent Changes</h2>
+      <div id="deploys-section">
+        <div class="recent-deploy">
+          <div class="deploy-time">18 Apr 2026, 09:30</div>
+          <div class="deploy-desc">payment-svc v1.4.2 — config update (routing rules)</div>
+        </div>
+        <div class="recent-deploy">
+          <div class="deploy-time">15 Apr 2026, 14:15</div>
+          <div class="deploy-desc">app-svc v1.2.0 — consumer group rebalance fix</div>
+        </div>
+        <div class="recent-deploy">
+          <div class="deploy-time">10 Apr 2026, 11:00</div>
+          <div class="deploy-desc">PostgreSQL maintenance — VACUUM ANALYZE</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Throughput -->
+    <div class="card">
+      <h2>Processing Throughput (30 min)</h2>
+      <div class="throughput-chart">
+        <canvas id="throughput-canvas"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function healthClass(status) {
+      if (status === 'healthy') return 'green';
+      if (status === 'degraded') return 'amber';
+      return 'red';
+    }
+
+    function drawChart(canvas, points) {
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      const w = rect.width;
+      const h = rect.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      if (!points || points.length < 2) {
+        ctx.fillStyle = '#444';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('Waiting for data...', w / 2 - 50, h / 2);
+        return;
+      }
+
+      const values = points.map(p => p.count);
+      const max = Math.max(...values, 1);
+      const stepX = w / (points.length - 1);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        const y = (h / 4) * i + 10;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Area fill
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      points.forEach((p, i) => {
+        const x = i * stepX;
+        const y = h - (p.count / max) * (h - 20);
+        if (i === 0) ctx.lineTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      const gradient = ctx.createLinearGradient(0, 0, 0, h);
+      gradient.addColorStop(0, 'rgba(0, 200, 83, 0.3)');
+      gradient.addColorStop(1, 'rgba(0, 200, 83, 0.02)');
+      ctx.fillStyle = gradient;
+      ctx.fill();
+
+      // Line
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        const x = i * stepX;
+        const y = h - (p.count / max) * (h - 20);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = '#00c853';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    async function refresh() {
+      try {
+        const resp = await fetch('/api/engineering/overview');
+        const data = await resp.json();
+
+        // Platform status
+        const badge = document.getElementById('platform-badge');
+        badge.textContent = data.platform_status;
+        badge.className = 'status-badge ' + (data.platform_status === 'All Systems Operational' ? 'operational' : 'degraded');
+
+        // Services
+        function formatUptime(s) {
+          const d = Math.floor(s / 86400);
+          const h = Math.floor((s % 86400) / 3600);
+          return d + 'd ' + h + 'h';
+        }
+        const serviceList = document.getElementById('service-list');
+        serviceList.innerHTML = '';
+        data.services.forEach(svc => {
+          const cls = healthClass(svc.status);
+          const meta = svc.response_ms !== null ? svc.response_ms + 'ms response' : 'No response';
+          const uptime = svc.uptime_s ? ' &middot; up ' + formatUptime(svc.uptime_s) : '';
+          serviceList.innerHTML += `
+            <div class="service-row">
+              <div>
+                <div class="service-name">${svc.name}</div>
+                <div class="service-meta">${meta}${uptime}</div>
+              </div>
+              <span>
+                <span class="health-dot ${cls}"></span>
+                <span class="health-label ${cls}">${svc.status.charAt(0).toUpperCase() + svc.status.slice(1)}</span>
+              </span>
+            </div>`;
+        });
+
+        // Kafka
+        const kafkaDot = document.getElementById('kafka-dot');
+        const kafkaLabel = document.getElementById('kafka-label');
+        const kafkaCls = healthClass(data.kafka.status);
+        kafkaDot.className = 'health-dot ' + kafkaCls;
+        kafkaLabel.className = 'health-label ' + kafkaCls;
+        kafkaLabel.textContent = data.kafka.status.charAt(0).toUpperCase() + data.kafka.status.slice(1);
+
+        if (data.kafka.topic_count !== undefined) {
+          document.getElementById('kafka-topics-count').textContent = data.kafka.topic_count;
+        }
+
+        // Database
+        if (data.database) {
+          const dbStatus = document.getElementById('db-status');
+          const dbCls = healthClass(data.database.status);
+          dbStatus.textContent = data.database.status.charAt(0).toUpperCase() + data.database.status.slice(1);
+          dbStatus.className = 'value health-label ' + dbCls;
+          document.getElementById('db-latency').textContent = data.database.latency_ms !== null ? data.database.latency_ms : '--';
+        }
+
+        // Resources
+        if (data.resources) {
+          const resDiv = document.getElementById('resources-section');
+          resDiv.innerHTML = '';
+          data.resources.forEach(r => {
+            const cpuCls = r.cpu_pct > 80 ? 'crit' : r.cpu_pct > 60 ? 'warn' : '';
+            const memCls = r.mem_pct > 80 ? 'crit' : r.mem_pct > 60 ? 'warn' : '';
+            resDiv.innerHTML += `
+              <div class="resource-row">
+                <div class="resource-name">${r.name}</div>
+                <div class="resource-bars">
+                  <div class="bar-group">
+                    <div class="bar-label">CPU</div>
+                    <div class="bar-track"><div class="bar-fill ${cpuCls}" style="width:${r.cpu_pct}%"></div></div>
+                    <div class="bar-value">${r.cpu_pct}%</div>
+                  </div>
+                  <div class="bar-group">
+                    <div class="bar-label">MEM</div>
+                    <div class="bar-track"><div class="bar-fill ${memCls}" style="width:${r.mem_pct}%"></div></div>
+                    <div class="bar-value">${r.mem_pct}%</div>
+                  </div>
+                </div>
+              </div>`;
+          });
+        }
+
+
+        // 30-day uptime bars
+        if (data.uptime) {
+          const uptimeDiv = document.getElementById('uptime-section');
+          uptimeDiv.innerHTML = '';
+          data.uptime.forEach(u => {
+            let bars = '';
+            u.days.forEach(d => {
+              const cls = d === 1 ? '' : d === 0 ? ' down' : ' partial';
+              bars += `<div class="uptime-bar${cls}"></div>`;
+            });
+            uptimeDiv.innerHTML += `
+              <div class="uptime-row">
+                <div class="uptime-svc">${u.name}</div>
+                <div class="uptime-bars">${bars}</div>
+                <div class="uptime-pct">${u.pct}%</div>
+              </div>`;
+          });
+        }
+
+        // Traffic & error rates
+        if (data.rates) {
+          const ratesDiv = document.getElementById('rates-section');
+          ratesDiv.innerHTML = '';
+          data.rates.forEach(r => {
+            const errColor = r.error_pct > 1 ? '#ff1744' : r.error_pct > 0 ? '#ff9800' : '#00c853';
+            ratesDiv.innerHTML += `
+              <div class="rate-row">
+                <div class="rate-svc">${r.name}</div>
+                <div class="rate-vals">
+                  <div class="rate-val"><div class="rv-num">${r.req_per_sec}</div><div class="rv-label">req/s</div></div>
+                  <div class="rate-val"><div class="rv-num" style="color:${errColor}">${r.error_pct}%</div><div class="rv-label">errors</div></div>
+                </div>
+              </div>`;
+          });
+        }
+
+        document.getElementById('refresh-time') .textContent = new Date().toLocaleTimeString('en-GB');
+      } catch (e) {
+        console.error('Refresh failed:', e);
+      }
+
+      // Throughput chart
+      try {
+        const resp2 = await fetch('/api/engineering/throughput');
+        const data2 = await resp2.json();
+        drawChart(document.getElementById('throughput-canvas'), data2.throughput || []);
+      } catch (e) {
+        console.error('Throughput fetch failed:', e);
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 10000);
+  </script>
+</body>
+</html>

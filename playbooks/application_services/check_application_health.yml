@@ -1,0 +1,32 @@
+---
+- name: Check Application Health
+  hosts: "{{ target_hosts | default('app_servers') }}"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Check service is running
+      ansible.builtin.systemd:
+        name: "{{ app_service_name | default('app-svc') }}"
+      register: svc_status
+
+    - name: Verify health endpoint responds
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port | default(5000) }}/health"
+        status_code: 200
+        timeout: 10
+      register: health_check
+      ignore_errors: true
+
+    - name: Check application log for recent errors
+      ansible.builtin.shell:
+        cmd: journalctl -u {{ app_service_name | default('app-svc') }} --since "15 min ago" --no-pager | grep -c ERROR || echo 0
+      register: error_count
+      changed_when: false
+
+    - name: Report health summary
+      ansible.builtin.debug:
+        msg: >-
+          Host={{ inventory_hostname }}
+          service_active={{ svc_status.status.ActiveState | default('unknown') }}
+          health_http={{ health_check.status | default('failed') }}
+          recent_errors={{ error_count.stdout | default('unknown') }}

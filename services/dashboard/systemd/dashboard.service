@@ -1,0 +1,19 @@
+[Unit]
+Description=AIOps Demo Dashboard (citizen portal + engineering ops)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/dashboard
+Environment=PYTHONUNBUFFERED=1
+Environment=DATABASE_URL=postgresql://passports_user:passports_pass@POSTGRES_IP:5432/passports
+Environment=KAFKA_ADMIN_URL=http://KAFKA_IP:8080
+Environment=PAYMENT_SVC_URL=http://PAYMENT_IP:5000
+Environment=APP_SVC_URL=http://APP_IP:5001
+ExecStart=/usr/bin/python3.11 -m gunicorn -b 0.0.0.0:8080 -w 2 --threads 2 app:app
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

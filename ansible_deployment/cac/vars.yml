@@ -1,0 +1,634 @@
+---
+# =============================================================================
+# AAP Configuration as Code — Multi-Org AIOps Demo
+# =============================================================================
+# Four organizations representing enterprise team silos:
+#   - Service Reliability  (cross-cutting AIOps, EDA, diagnostics)
+#   - Application Services  (app-svc, payment-svc lifecycle)
+#   - Middleware Services   (Kafka operations)
+#   - Database Services     (PostgreSQL operations)
+#
+# apply.yml loads this file and runs infra.aap_configuration.dispatch
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Organizations
+# -----------------------------------------------------------------------------
+aap_organizations:
+  - name: "Default"
+    state: absent
+  - name: "Service Reliability"
+    description: "Cross-cutting AIOps orchestration, EDA, and incident response"
+  - name: "Application Services"
+    description: "Application lifecycle management (app-svc, payment-svc)"
+  - name: "Middleware Services"
+    description: "Kafka and messaging infrastructure operations"
+  - name: "Storage Services"
+    description: "Volume and disk management"
+  - name: "Database Services"
+    description: "PostgreSQL database administration"
+
+# -----------------------------------------------------------------------------
+# Custom Credential Types
+# -----------------------------------------------------------------------------
+controller_credential_types:
+  - name: "ServiceNow Credential"
+    description: "ServiceNow instance access for CMDB and incident management"
+    kind: "cloud"
+    inputs:
+      fields:
+        - id: SN_HOST
+          type: string
+          label: Snow Instance
+        - id: SN_USERNAME
+          type: string
+          label: Username
+        - id: SN_PASSWORD
+          type: string
+          label: Password
+          secret: true
+      required:
+        - SN_HOST
+        - SN_USERNAME
+        - SN_PASSWORD
+    injectors:
+      env:
+        SN_HOST: !unsafe "{{ SN_HOST }}"
+        SN_USERNAME: !unsafe "{{ SN_USERNAME }}"
+        SN_PASSWORD: !unsafe "{{ SN_PASSWORD }}"
+
+  - name: "ALIA Token"
+    description: "Bearer token for Ansible Lightspeed Intelligent Assist"
+    kind: "cloud"
+    inputs:
+      fields:
+        - id: ALIA_TOKEN
+          type: string
+          label: ALIA Bearer Token
+          secret: true
+      required:
+        - ALIA_TOKEN
+    injectors:
+      env:
+        ALIA_TOKEN: !unsafe "{{ ALIA_TOKEN }}"
+
+# EDA credential types
+eda_credential_types:
+  - name: "ServiceNow Credential"
+    description: "ServiceNow instance access for EDA event source"
+    kind: "cloud"
+    inputs:
+      fields:
+        - id: SN_HOST
+          type: string
+          label: Snow Instance
+        - id: SN_USERNAME
+          type: string
+          label: Username
+        - id: SN_PASSWORD
+          type: string
+          label: Password
+          secret: true
+      required:
+        - SN_HOST
+        - SN_USERNAME
+        - SN_PASSWORD
+    injectors:
+      env:
+        SN_HOST: !unsafe "{{ SN_HOST }}"
+        SN_USERNAME: !unsafe "{{ SN_USERNAME }}"
+        SN_PASSWORD: !unsafe "{{ SN_PASSWORD }}"
+
+# -----------------------------------------------------------------------------
+# Projects (one per org, all pointing to the same git repo)
+# -----------------------------------------------------------------------------
+controller_projects:
+  - name: "AIOps Business Value Scenarios"
+    description: "Cross-org diagnostics, remediation, and ALIA enrichment playbooks"
+    organization: "Service Reliability"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+  - name: "Application Automation"
+    description: "Application deployment, health checks, and lifecycle playbooks"
+    organization: "Application Services"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+  - name: "Middleware Automation"
+    description: "Kafka broker operations, patching, and maintenance playbooks"
+    organization: "Middleware Services"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+  - name: "Storage Automation"
+    description: "Volume health, expansion, snapshots, and space reclamation playbooks"
+    organization: "Storage Services"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+  - name: "Database Automation"
+    description: "PostgreSQL backup, maintenance, and failover playbooks"
+    organization: "Database Services"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+
+# -----------------------------------------------------------------------------
+# Inventories
+# -----------------------------------------------------------------------------
+controller_inventories:
+  - name: "All Services"
+    description: "Cross-cutting inventory — all managed infrastructure (Service Reliability)"
+    organization: "Service Reliability"
+
+  - name: "Application Hosts"
+    description: "Application service instances (app-svc, payment-svc)"
+    organization: "Application Services"
+
+  - name: "Middleware Hosts"
+    description: "Kafka broker instances"
+    organization: "Middleware Services"
+
+  - name: "Storage Hosts"
+    description: "All managed hosts for volume and disk operations"
+    organization: "Storage Services"
+
+  - name: "Database Hosts"
+    description: "PostgreSQL database instances"
+    organization: "Database Services"
+
+# -----------------------------------------------------------------------------
+# Hosts
+# -----------------------------------------------------------------------------
+controller_hosts:
+  # Service Reliability — full visibility
+  - name: "payment-svc"
+    inventory: "All Services"
+    variables:
+      ansible_host: "{{ payment_svc_ip | default('10.0.1.182') }}"
+      ansible_user: ec2-user
+  - name: "app-svc"
+    inventory: "All Services"
+    variables:
+      ansible_host: "{{ app_svc_ip | default('10.0.1.16') }}"
+      ansible_user: ec2-user
+  - name: "kafka"
+    inventory: "All Services"
+    variables:
+      ansible_host: "{{ kafka_ip | default('10.0.2.30') }}"
+      ansible_user: ec2-user
+  - name: "postgres"
+    inventory: "All Services"
+    variables:
+      ansible_host: "{{ postgres_ip | default('10.0.3.61') }}"
+      ansible_user: ec2-user
+
+  # Application Services
+  - name: "payment-svc"
+    inventory: "Application Hosts"
+    variables:
+      ansible_host: "{{ payment_svc_ip | default('10.0.1.182') }}"
+      ansible_user: ec2-user
+  - name: "app-svc"
+    inventory: "Application Hosts"
+    variables:
+      ansible_host: "{{ app_svc_ip | default('10.0.1.16') }}"
+      ansible_user: ec2-user
+
+  # Middleware Services
+  - name: "kafka"
+    inventory: "Middleware Hosts"
+    variables:
+      ansible_host: "{{ kafka_ip | default('10.0.2.30') }}"
+      ansible_user: ec2-user
+
+  # Storage Services (volume management across all hosts)
+  - name: "payment-svc"
+    inventory: "Storage Hosts"
+    variables:
+      ansible_host: "{{ payment_svc_ip | default('10.0.1.182') }}"
+      ansible_user: ec2-user
+  - name: "app-svc"
+    inventory: "Storage Hosts"
+    variables:
+      ansible_host: "{{ app_svc_ip | default('10.0.1.16') }}"
+      ansible_user: ec2-user
+  - name: "kafka"
+    inventory: "Storage Hosts"
+    variables:
+      ansible_host: "{{ kafka_ip | default('10.0.2.30') }}"
+      ansible_user: ec2-user
+  - name: "postgres"
+    inventory: "Storage Hosts"
+    variables:
+      ansible_host: "{{ postgres_ip | default('10.0.3.61') }}"
+      ansible_user: ec2-user
+
+  # Database Services
+  - name: "postgres"
+    inventory: "Database Hosts"
+    variables:
+      ansible_host: "{{ postgres_ip | default('10.0.3.61') }}"
+      ansible_user: ec2-user
+
+# -----------------------------------------------------------------------------
+# Credentials
+# -----------------------------------------------------------------------------
+controller_credentials:
+  # Service Reliability credentials
+  - name: "ServiceNow ITSM"
+    description: "ServiceNow instance for CMDB queries and incident updates"
+    organization: "Service Reliability"
+    credential_type: "ServiceNow Credential"
+    inputs:
+      SN_HOST: "{{ sn_instance }}"
+      SN_USERNAME: "{{ sn_username }}"
+      SN_PASSWORD: "{{ sn_password }}"
+
+  - name: "AAP Controller"
+    description: "Token credential for cross-org job launches"
+    organization: "Service Reliability"
+    credential_type: "Red Hat Ansible Automation Platform"
+    inputs:
+      host: "{{ (aap_hostname | regex_replace('/+$','')) ~ '/api/controller/' }}"
+      oauth_token: "{{ aap_token }}"
+      verify_ssl: "{{ aap_validate_certs }}"
+
+  - name: "ALIA API"
+    description: "Bearer token for Ansible Lightspeed Intelligent Assist"
+    organization: "Service Reliability"
+    credential_type: "ALIA Token"
+    inputs:
+      ALIA_TOKEN: "{{ alia_token }}"
+
+  - name: "Platform SSH"
+    description: "SSH key for all managed hosts (cross-cutting access)"
+    organization: "Service Reliability"
+    credential_type: "Machine"
+    inputs:
+      username: ec2-user
+      ssh_key_data: "{{ monitoring_ssh_key }}"
+
+  # Application Services credentials
+  - name: "Application SSH"
+    description: "SSH key for application service hosts"
+    organization: "Application Services"
+    credential_type: "Machine"
+    inputs:
+      username: ec2-user
+      ssh_key_data: "{{ monitoring_ssh_key }}"
+
+  # Middleware Services credentials
+  - name: "Middleware SSH"
+    description: "SSH key for Kafka broker hosts"
+    organization: "Middleware Services"
+    credential_type: "Machine"
+    inputs:
+      username: ec2-user
+      ssh_key_data: "{{ monitoring_ssh_key }}"
+
+  # Storage Services credentials
+  - name: "Storage SSH"
+    description: "SSH key for volume and disk operations across all hosts"
+    organization: "Storage Services"
+    credential_type: "Machine"
+    inputs:
+      username: ec2-user
+      ssh_key_data: "{{ monitoring_ssh_key }}"
+
+  # Database Services credentials
+  - name: "Database SSH"
+    description: "SSH key for PostgreSQL database hosts"
+    organization: "Database Services"
+    credential_type: "Machine"
+    inputs:
+      username: ec2-user
+      ssh_key_data: "{{ monitoring_ssh_key }}"
+
+# -----------------------------------------------------------------------------
+# Job Templates — Service Reliability (real)
+# -----------------------------------------------------------------------------
+controller_templates:
+  # --- Service Reliability ---
+  - name: "CMDB Lookup"
+    description: "Query ServiceNow CMDB to resolve the affected host IP and hostname from the incident CI"
+    organization: "Service Reliability"
+    job_type: "run"
+    project: "AIOps Business Value Scenarios"
+    playbook: "playbooks/service_reliability/cmdb_lookup.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
+    credentials:
+      - "ServiceNow ITSM"
+
+  - name: "ALIA Enrichment"
+    description: "Send diagnostics to ALIA for root cause analysis, job template recommendation via MCP, and ServiceNow update"
+    organization: "Service Reliability"
+    job_type: "run"
+    project: "AIOps Business Value Scenarios"
+    playbook: "playbooks/service_reliability/alia_enrichment.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
+    credentials:
+      - "ServiceNow ITSM"
+      - "ALIA API"
+
+  - name: "Replay Held Messages"
+    description: "Replay messages from Kafka DLQ back to the correct topic after routing fix"
+    organization: "Service Reliability"
+    job_type: "run"
+    project: "AIOps Business Value Scenarios"
+    playbook: "playbooks/service_reliability/replay_held_messages.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
+    credentials:
+      - "Platform SSH"
+
+  - name: "Rollback Service Configuration"
+    description: "Reconcile a drifted service config with its declared state in source control — pulls known-good, restores, restarts, verifies"
+    organization: "Service Reliability"
+    job_type: "run"
+    project: "AIOps Business Value Scenarios"
+    playbook: "playbooks/service_reliability/rollback_service_config.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
+    credentials:
+      - "Platform SSH"
+
+  # --- Application Services ---
+  - name: "Deploy Application"
+    description: "Deploy a new version of an application service with zero-downtime rolling update"
+    organization: "Application Services"
+    job_type: "run"
+    project: "Application Automation"
+    playbook: "playbooks/application_services/deploy_application.yml"
+    inventory: "Application Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Application SSH"
+
+  - name: "Restart Application Stack"
+    description: "Rolling restart of application services with load balancer drain and re-register"
+    organization: "Application Services"
+    job_type: "run"
+    project: "Application Automation"
+    playbook: "playbooks/application_services/restart_application_stack.yml"
+    inventory: "Application Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Application SSH"
+
+  - name: "Check Application Health"
+    description: "Verify service status, health endpoints, and recent error rates"
+    organization: "Application Services"
+    job_type: "run"
+    project: "Application Automation"
+    playbook: "playbooks/application_services/check_application_health.yml"
+    inventory: "Application Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Application SSH"
+
+  - name: "Rollback Deployment"
+    description: "Revert to a previous application version with optional migration rollback"
+    organization: "Application Services"
+    job_type: "run"
+    project: "Application Automation"
+    playbook: "playbooks/application_services/rollback_deployment.yml"
+    inventory: "Application Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Application SSH"
+
+  # --- Middleware Services ---
+  - name: "Patch Kafka Brokers"
+    description: "Rolling upgrade of Kafka brokers with partition drain and ISR verification"
+    organization: "Middleware Services"
+    job_type: "run"
+    project: "Middleware Automation"
+    playbook: "playbooks/middleware_services/patch_kafka_brokers.yml"
+    inventory: "Middleware Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Middleware SSH"
+
+  - name: "Check Consumer Lag"
+    description: "Report consumer group lag across all topics and alert on thresholds"
+    organization: "Middleware Services"
+    job_type: "run"
+    project: "Middleware Automation"
+    playbook: "playbooks/middleware_services/check_consumer_lag.yml"
+    inventory: "Middleware Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Middleware SSH"
+
+  - name: "Rotate Kafka Credentials"
+    description: "Rotate SCRAM credentials for Kafka clients with rolling broker restart"
+    organization: "Middleware Services"
+    job_type: "run"
+    project: "Middleware Automation"
+    playbook: "playbooks/middleware_services/rotate_kafka_credentials.yml"
+    inventory: "Middleware Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Middleware SSH"
+
+  - name: "Rebalance Partitions"
+    description: "Compute and execute optimal partition assignment across brokers"
+    organization: "Middleware Services"
+    job_type: "run"
+    project: "Middleware Automation"
+    playbook: "playbooks/middleware_services/rebalance_partitions.yml"
+    inventory: "Middleware Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Middleware SSH"
+
+  # --- Storage Services ---
+  - name: "Check Volume Health"
+    description: "Check filesystem usage, inode capacity, read-only mounts, and I/O errors across hosts"
+    organization: "Storage Services"
+    job_type: "run"
+    project: "Storage Automation"
+    playbook: "playbooks/storage_services/check_volume_health.yml"
+    inventory: "Storage Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Storage SSH"
+
+  - name: "Expand Volume"
+    description: "Resize an EBS volume and grow the filesystem to fill the new capacity"
+    organization: "Storage Services"
+    job_type: "run"
+    project: "Storage Automation"
+    playbook: "playbooks/storage_services/expand_volume.yml"
+    inventory: "Storage Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Storage SSH"
+
+  - name: "Snapshot Volume"
+    description: "Create a consistent EBS snapshot with filesystem quiesce and retention tagging"
+    organization: "Storage Services"
+    job_type: "run"
+    project: "Storage Automation"
+    playbook: "playbooks/storage_services/snapshot_volume.yml"
+    inventory: "Storage Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Storage SSH"
+
+  - name: "Reclaim Disk Space"
+    description: "Clear caches, rotate logs, and remove temp files to recover disk capacity"
+    organization: "Storage Services"
+    job_type: "run"
+    project: "Storage Automation"
+    playbook: "playbooks/storage_services/reclaim_disk_space.yml"
+    inventory: "Storage Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Storage SSH"
+
+  # --- Database Services ---
+  - name: "Backup Database"
+    description: "Run pg_dump with verification and optional upload to object storage"
+    organization: "Database Services"
+    job_type: "run"
+    project: "Database Automation"
+    playbook: "playbooks/database_services/backup_database.yml"
+    inventory: "Database Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Database SSH"
+
+  - name: "Rotate DB Credentials"
+    description: "Rotate PostgreSQL role passwords with session termination and vault update"
+    organization: "Database Services"
+    job_type: "run"
+    project: "Database Automation"
+    playbook: "playbooks/database_services/rotate_db_credentials.yml"
+    inventory: "Database Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Database SSH"
+
+  - name: "Vacuum and Reindex"
+    description: "Reclaim dead tuples and rebuild indexes to maintain query performance"
+    organization: "Database Services"
+    job_type: "run"
+    project: "Database Automation"
+    playbook: "playbooks/database_services/vacuum_and_reindex.yml"
+    inventory: "Database Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Database SSH"
+
+  - name: "Failover to Replica"
+    description: "Promote PostgreSQL standby to primary with DNS update and service notification"
+    organization: "Database Services"
+    job_type: "run"
+    project: "Database Automation"
+    playbook: "playbooks/database_services/failover_replica.yml"
+    inventory: "Database Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Database SSH"
+
+# -----------------------------------------------------------------------------
+# Workflow Templates (Service Reliability)
+# -----------------------------------------------------------------------------
+controller_workflows:
+  - name: "Incident Diagnostics Workflow"
+    description: "Cross-org AIOps: CMDB lookup, fan-out diagnostics to each team's templates, ALIA root cause analysis"
+    organization: "Service Reliability"
+    ask_variables_on_launch: true
+    simplified_workflow_nodes:
+      - identifier: cmdb_lookup
+        unified_job_template: "CMDB Lookup"
+        success_nodes:
+          - check_app_health
+          - check_consumer_lag
+          - check_volume_health
+
+      - identifier: check_app_health
+        unified_job_template: "Check Application Health"
+        organization: "Application Services"
+        success_nodes:
+          - alia_enrichment
+
+      - identifier: check_consumer_lag
+        unified_job_template: "Check Consumer Lag"
+        organization: "Middleware Services"
+        success_nodes:
+          - alia_enrichment
+
+      - identifier: check_volume_health
+        unified_job_template: "Check Volume Health"
+        organization: "Storage Services"
+        success_nodes:
+          - alia_enrichment
+
+      - identifier: alia_enrichment
+        unified_job_template: "ALIA Enrichment"
+        all_parents_must_converge: true
+
+# -----------------------------------------------------------------------------
+# EDA — Service Reliability
+# -----------------------------------------------------------------------------
+eda_projects:
+  - name: "AIOps Business Value Scenarios"
+    description: "Rulebooks for ServiceNow incident monitoring and automated response"
+    organization: "Service Reliability"
+    scm_type: "git"
+    scm_url: "{{ git_repo_url }}"
+    scm_branch: "main"
+    scm_update_on_launch: true
+    sync: true
+
+eda_credentials:
+  - name: "ServiceNow ITSM"
+    description: "ServiceNow instance access for EDA event source"
+    organization: "Service Reliability"
+    credential_type: "ServiceNow Credential"
+    inputs:
+      SN_HOST: "{{ sn_instance }}"
+      SN_USERNAME: "{{ sn_username }}"
+      SN_PASSWORD: "{{ sn_password }}"
+
+  - name: "AAP Controller"
+    description: "Token credential for EDA to launch Controller workflows"
+    organization: "Service Reliability"
+    credential_type: "Red Hat Ansible Automation Platform"
+    inputs:
+      host: "{{ (aap_hostname | regex_replace('/+$','')) ~ '/api/controller/' }}"
+      oauth_token: "{{ aap_token }}"
+      verify_ssl: "{{ aap_validate_certs }}"
+
+eda_decision_environments:
+  - name: "snow-de"
+    description: "Decision Environment with ServiceNow and EDA collections"
+    organization: "Service Reliability"
+    image_url: "{{ de_image }}"
+
+eda_rulebook_activations:
+  - name: "ServiceNow Incident Monitor"
+    description: "Watches for new/escalated ServiceNow incidents and triggers diagnostics workflow"
+    organization: "Service Reliability"
+    project: "AIOps Business Value Scenarios"
+    rulebook: "rulebooks/service_reliability/servicenow_incident_rulebook.yml"
+    decision_environment: "snow-de"
+    eda_credentials:
+      - "ServiceNow ITSM"
+      - "AAP Controller"
+    enabled: true

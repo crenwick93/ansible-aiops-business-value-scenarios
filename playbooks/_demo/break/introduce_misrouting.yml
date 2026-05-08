@@ -1,0 +1,117 @@
+---
+# introduce_misrouting.yml — Parameterised "break" playbook
+#
+# PURPOSE (demo context):
+#   This playbook introduces a subtle failure into a running service.  It is
+#   intentionally parameterised so the audience sees that the *same tool* could
+#   break a different service in a different way just by changing variables.
+#   The demo presenter runs it to set up the incident scenario.
+#
+# The default parameters reproduce the passport misrouting bug: messages with
+# routing key "fee.standard.adult" are redirected from the main "payments"
+# topic to "payments.dlq", so those applications silently stop progressing.
+#
+# PARAMETERS (all overridable with -e):
+#   target_service       — systemd service name and /opt/ directory to modify
+#   affected_routing_key — which fee_type pattern to misroute
+#   failure_mode         — "misroute_to_dlq" or "restore" (undo the break)
+
+- name: "Introduce controlled failure into {{ target_service }}"
+  hosts: "{{ target_service }}"
+  become: true
+  gather_facts: false
+
+  vars:
+    # These variables are the whole point: change them and you break a
+    # different service in a different way.  The audience should see this.
+    target_service: payment-svc
+    affected_routing_key: "fee.standard.adult"
+    failure_mode: misroute_to_dlq       # "misroute_to_dlq" or "restore"
+    misroute_target_topic: "payments.dlq"
+    correct_topic: "payments"
+    config_path: "/opt/{{ target_service }}/config.py"
+
+  tasks:
+    - name: Validate failure_mode parameter
+      ansible.builtin.assert:
+        that:
+          - failure_mode in ['misroute_to_dlq', 'restore']
+        fail_msg: "failure_mode must be 'misroute_to_dlq' or 'restore', got '{{ failure_mode }}'"
+
+    - name: Read current config
+      ansible.builtin.slurp:
+        src: "{{ config_path }}"
+      register: _current_config
+
+    - name: Display current config (for presenter visibility)
+      ansible.builtin.debug:
+        msg: "Current config.py:\n{{ _current_config.content | b64decode }}"
+
+    # --- BREAK: misroute a routing key to the DLQ ----------------------------
+    - name: "BREAK — Misroute '{{ affected_routing_key }}' to '{{ misroute_target_topic }}'"
+      when: failure_mode == 'misroute_to_dlq'
+      block:
+        - name: Modify routing rule in config.py
+          ansible.builtin.replace:
+            path: "{{ config_path }}"
+            regexp: '("{{ affected_routing_key | regex_escape }}":\s*)"{{ correct_topic }}"'
+            replace: '\1"{{ misroute_target_topic }}"'
+          register: _config_changed
+
+        - name: Log the break to deployment history
+          ansible.builtin.lineinfile:
+            path: /var/log/deployment_history.log
+            line: "{{ ansible_date_time.iso8601 }} BREAK: {{ affected_routing_key }} misrouted to {{ misroute_target_topic }} by introduce_misrouting playbook"
+            create: true
+            mode: "0644"
+
+    # --- RESTORE: undo the misrouting ----------------------------------------
+    - name: "RESTORE — Route '{{ affected_routing_key }}' back to '{{ correct_topic }}'"
+      when: failure_mode == 'restore'
+      block:
+        - name: Restore routing rule in config.py
+          ansible.builtin.replace:
+            path: "{{ config_path }}"
+            regexp: '("{{ affected_routing_key | regex_escape }}":\s*)"{{ misroute_target_topic }}"'
+            replace: '\1"{{ correct_topic }}"'
+          register: _config_changed
+
+        - name: Log the restore to deployment history
+          ansible.builtin.lineinfile:
+            path: /var/log/deployment_history.log
+            line: "{{ ansible_date_time.iso8601 }} RESTORE: {{ affected_routing_key }} restored to {{ correct_topic }} by introduce_misrouting playbook"
+            create: true
+            mode: "0644"
+
+    - name: Read modified config for verification
+      ansible.builtin.slurp:
+        src: "{{ config_path }}"
+      register: _new_config
+
+    - name: Display modified config
+      ansible.builtin.debug:
+        msg: "Modified config.py:\n{{ _new_config.content | b64decode }}"
+
+    - name: Restart the service to pick up config change
+      ansible.builtin.systemd:
+        name: "{{ target_service }}"
+        state: restarted
+      when: _config_changed is changed
+
+    - name: Wait for service to become healthy
+      ansible.builtin.uri:
+        url: "http://localhost:{{ (target_service == 'payment-svc') | ternary('5000', '5001') }}/health"
+        method: GET
+      register: _health
+      retries: 10
+      delay: 3
+      until: _health.status == 200
+      when: _config_changed is changed
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ failure_mode | upper }}: {{ target_service }} config updated.
+          Routing key '{{ affected_routing_key }}' now points to
+          '{{ (failure_mode == "misroute_to_dlq") | ternary(misroute_target_topic, correct_topic) }}'.
+          Service restarted and healthy.

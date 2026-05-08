@@ -1,0 +1,45 @@
+---
+- name: Patch Kafka Brokers
+  hosts: "{{ target_hosts | default('kafka_brokers') }}"
+  become: true
+  serial: 1
+  tasks:
+    - name: Validate patch parameters
+      ansible.builtin.assert:
+        that:
+          - kafka_version is defined
+        fail_msg: "Required: kafka_version (target Kafka version)"
+
+    - name: Check current Kafka version
+      ansible.builtin.shell:
+        cmd: /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 2>&1 | head -1
+      register: current_version
+      changed_when: false
+
+    - name: Drain broker from ISR
+      ansible.builtin.debug:
+        msg: "Draining broker {{ inventory_hostname }} — waiting for partition reassignment"
+
+    - name: Stop Kafka service
+      ansible.builtin.systemd:
+        name: kafka
+        state: stopped
+
+    - name: Apply Kafka patch
+      ansible.builtin.debug:
+        msg: "Upgrading Kafka to {{ kafka_version }} on {{ inventory_hostname }}"
+
+    - name: Start Kafka service
+      ansible.builtin.systemd:
+        name: kafka
+        state: started
+
+    - name: Wait for broker to rejoin cluster
+      ansible.builtin.wait_for:
+        port: 9092
+        delay: 10
+        timeout: 120
+
+    - name: Verify broker is in-sync
+      ansible.builtin.debug:
+        msg: "Broker {{ inventory_hostname }} rejoined cluster and is in-sync"

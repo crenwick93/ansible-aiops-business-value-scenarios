@@ -1,0 +1,36 @@
+---
+- name: Rollback Deployment
+  hosts: "{{ target_hosts | default('app_servers') }}"
+  become: true
+  tasks:
+    - name: Validate rollback parameters
+      ansible.builtin.assert:
+        that:
+          - rollback_version is defined
+        fail_msg: "Required: rollback_version (the version to revert to)"
+
+    - name: Stop current application
+      ansible.builtin.systemd:
+        name: "{{ app_service_name | default('app-svc') }}"
+        state: stopped
+
+    - name: Restore previous artifact
+      ansible.builtin.debug:
+        msg: "Rolling back to {{ app_service_name | default('app-svc') }}:{{ rollback_version }}"
+
+    - name: Revert database migrations if required
+      ansible.builtin.debug:
+        msg: "Checking for reversible migrations between current and {{ rollback_version }}"
+      when: rollback_migrations | default(false) | bool
+
+    - name: Start rolled-back service
+      ansible.builtin.systemd:
+        name: "{{ app_service_name | default('app-svc') }}"
+        state: started
+
+    - name: Confirm rollback health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port | default(5000) }}/health"
+        status_code: 200
+      retries: 5
+      delay: 3

@@ -1,0 +1,35 @@
+---
+- name: Expand Volume
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  tasks:
+    - name: Validate parameters
+      ansible.builtin.assert:
+        that:
+          - mount_point is defined
+          - target_size_gb is defined
+        fail_msg: "Required: mount_point, target_size_gb"
+
+    - name: Check current volume size
+      ansible.builtin.shell:
+        cmd: df -BG {{ mount_point }} | tail -1 | awk '{print $2}'
+      register: current_size
+      changed_when: false
+
+    - name: Resize underlying block device
+      ansible.builtin.debug:
+        msg: "Expanding {{ mount_point }} from {{ current_size.stdout }} to {{ target_size_gb }}G"
+
+    - name: Grow filesystem to fill new volume
+      ansible.builtin.debug:
+        msg: "Running resize2fs/xfs_growfs on {{ mount_point }}"
+
+    - name: Verify new size
+      ansible.builtin.shell:
+        cmd: df -BG {{ mount_point }} | tail -1 | awk '{print $2}'
+      register: new_size
+      changed_when: false
+
+    - name: Report completion
+      ansible.builtin.debug:
+        msg: "Volume expanded — {{ mount_point }} now {{ new_size.stdout }}"

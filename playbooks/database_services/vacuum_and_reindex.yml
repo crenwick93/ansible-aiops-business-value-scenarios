@@ -1,0 +1,31 @@
+---
+- name: Vacuum and Reindex
+  hosts: "{{ target_hosts | default('db_servers') }}"
+  become: true
+  become_user: postgres
+  tasks:
+    - name: Check table bloat
+      ansible.builtin.shell:
+        cmd: >-
+          psql -d {{ db_name | default('passports') }} -t -c
+          "SELECT relname, n_dead_tup FROM pg_stat_user_tables ORDER BY n_dead_tup DESC LIMIT 5;"
+      register: bloat_check
+      changed_when: false
+
+    - name: Display bloat report
+      ansible.builtin.debug:
+        msg: "{{ bloat_check.stdout_lines }}"
+
+    - name: Run VACUUM ANALYZE
+      ansible.builtin.shell:
+        cmd: psql -d {{ db_name | default('passports') }} -c "VACUUM ANALYZE;"
+      register: vacuum_result
+
+    - name: Reindex tables with high bloat
+      ansible.builtin.shell:
+        cmd: psql -d {{ db_name | default('passports') }} -c "REINDEX DATABASE {{ db_name | default('passports') }};"
+      when: reindex | default(false) | bool
+
+    - name: Report completion
+      ansible.builtin.debug:
+        msg: "Maintenance complete — dead tuples reclaimed, statistics updated"

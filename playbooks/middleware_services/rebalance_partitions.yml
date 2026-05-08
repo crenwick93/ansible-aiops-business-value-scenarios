@@ -1,0 +1,30 @@
+---
+- name: Rebalance Partitions
+  hosts: "{{ target_hosts | default('kafka_brokers') }}"
+  become: true
+  gather_facts: false
+  run_once: true
+  tasks:
+    - name: Get current partition assignment
+      ansible.builtin.shell:
+        cmd: >-
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092
+          --describe --topic {{ topic_name | default('payments') }}
+      register: partition_info
+      changed_when: false
+
+    - name: Display current assignment
+      ansible.builtin.debug:
+        msg: "{{ partition_info.stdout_lines }}"
+
+    - name: Generate reassignment plan
+      ansible.builtin.debug:
+        msg: "Computing optimal partition assignment for {{ num_brokers | default(3) }} brokers"
+
+    - name: Execute partition reassignment
+      ansible.builtin.debug:
+        msg: "Reassignment in progress — monitor with kafka-reassign-partitions.sh --verify"
+
+    - name: Verify rebalance completion
+      ansible.builtin.debug:
+        msg: "Partition rebalance complete — all replicas in-sync"

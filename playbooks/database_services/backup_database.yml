@@ -1,0 +1,33 @@
+---
+- name: Backup Database
+  hosts: "{{ target_hosts | default('db_servers') }}"
+  become: true
+  become_user: postgres
+  tasks:
+    - name: Validate backup parameters
+      ansible.builtin.assert:
+        that:
+          - backup_label is defined
+        fail_msg: "Required: backup_label (identifier for this backup)"
+
+    - name: Check available disk space
+      ansible.builtin.shell:
+        cmd: df -h /var/lib/pgsql/backups | tail -1 | awk '{print $5}'
+      register: disk_usage
+      changed_when: false
+
+    - name: Run pg_dump
+      ansible.builtin.shell:
+        cmd: >-
+          pg_dump -Fc -f /var/lib/pgsql/backups/{{ backup_label }}_$(date +%Y%m%d_%H%M%S).dump
+          {{ db_name | default('passports') }}
+      register: backup_result
+
+    - name: Verify backup integrity
+      ansible.builtin.debug:
+        msg: "Backup {{ backup_label }} complete — verifying with pg_restore --list"
+
+    - name: Upload to object storage
+      ansible.builtin.debug:
+        msg: "Uploading backup to s3://{{ backup_bucket | default('db-backups') }}/{{ backup_label }}/"
+      when: upload_to_s3 | default(false) | bool

@@ -1,0 +1,29 @@
+---
+- name: Reclaim Disk Space
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  tasks:
+    - name: Clear package manager cache
+      ansible.builtin.shell:
+        cmd: dnf clean all 2>/dev/null || apt-get clean 2>/dev/null || true
+      changed_when: false
+
+    - name: Rotate and compress logs
+      ansible.builtin.shell:
+        cmd: journalctl --vacuum-time=7d --vacuum-size=500M
+      register: journal_clean
+
+    - name: Remove old temporary files
+      ansible.builtin.shell:
+        cmd: find /tmp /var/tmp -type f -atime +7 -delete 2>/dev/null; echo "done"
+      changed_when: false
+
+    - name: Check recovered space
+      ansible.builtin.shell:
+        cmd: df -h / | tail -1 | awk '{print $4}'
+      register: free_space
+      changed_when: false
+
+    - name: Report completion
+      ansible.builtin.debug:
+        msg: "Disk reclamation complete — {{ free_space.stdout }} free on /"

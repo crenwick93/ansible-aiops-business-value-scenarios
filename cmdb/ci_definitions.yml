@@ -1,0 +1,85 @@
+---
+# CI definitions for the AIOps demo CMDB graph.
+#
+# This file defines the business service, its component CIs, and the typed
+# relationships between them.  setup_cmdb.py reads this and creates everything
+# in ServiceNow via the Table API.
+
+business_service:
+  name: "Passport online application service"
+  ci_class: cmdb_ci_service
+  description: "[aiops-demo] UK Passport online application and payment processing service"
+  attributes:
+    operational_status: "1"       # Operational
+    environment: demo
+    owned_by_group: "Digital Services"
+
+components:
+  - name: payment-svc
+    ci_class: cmdb_ci_appl
+    description: "[aiops-demo] Payment gateway — accepts /pay requests, routes to Kafka"
+    attributes:
+      ip_address: ""              # populated from Terraform outputs at setup time
+      environment: demo
+      owned_by_group: "Service Reliability"
+      version: "1.4.2"
+
+  - name: payment-queue
+    ci_class: cmdb_ci_messaging_server
+    description: "[aiops-demo] Apache Kafka broker (KRaft) — payments message bus"
+    attributes:
+      ip_address: ""
+      environment: demo
+      owned_by_group: "Service Reliability"
+      version: "3.7.2"
+
+  - name: app-svc
+    ci_class: cmdb_ci_appl
+    description: "[aiops-demo] Application processor — consumes payments, updates database"
+    attributes:
+      ip_address: ""
+      environment: demo
+      owned_by_group: "Service Reliability"
+      version: "1.2.0"
+
+  - name: app-db
+    ci_class: cmdb_ci_db_instance
+    description: "[aiops-demo] PostgreSQL 16 — passports application database"
+    attributes:
+      ip_address: ""
+      environment: demo
+      owned_by_group: "Database Operations"
+      version: "16"
+      database_name: passports
+
+# Typed relationships following ServiceNow CMDB conventions.
+# "parent" and "child" reference component names from above, or
+# "business_service" for the top-level service.
+relationships:
+  - parent: business_service
+    child: payment-svc
+    type: "Contains::Used by"
+
+  - parent: business_service
+    child: payment-queue
+    type: "Contains::Used by"
+
+  - parent: business_service
+    child: app-svc
+    type: "Contains::Used by"
+
+  - parent: business_service
+    child: app-db
+    type: "Contains::Used by"
+
+  - parent: payment-svc
+    child: payment-queue
+    type: "Sends data to::Receives data from"
+
+  - parent: payment-queue
+    child: app-svc
+    type: "Provides data to::Depends on"
+
+  - parent: app-svc
+    child: app-db
+    type: "Uses::Used by"

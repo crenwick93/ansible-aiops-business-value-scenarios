@@ -1,0 +1,24 @@
+---
+- name: Restart Application Stack
+  hosts: "{{ target_hosts | default('app_servers') }}"
+  become: true
+  serial: 1
+  tasks:
+    - name: Drain connections from load balancer
+      ansible.builtin.debug:
+        msg: "Draining {{ inventory_hostname }} from upstream pool"
+
+    - name: Restart application service
+      ansible.builtin.systemd:
+        name: "{{ app_service_name | default('app-svc') }}"
+        state: restarted
+
+    - name: Wait for service readiness
+      ansible.builtin.wait_for:
+        port: "{{ app_port | default(5000) }}"
+        delay: 5
+        timeout: 60
+
+    - name: Re-register with load balancer
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} re-registered — serving traffic"

@@ -1,0 +1,27 @@
+---
+- name: Snapshot Volume
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  tasks:
+    - name: Validate parameters
+      ansible.builtin.assert:
+        that:
+          - volume_id is defined
+          - snapshot_label is defined
+        fail_msg: "Required: volume_id, snapshot_label"
+
+    - name: Quiesce filesystem writes
+      ansible.builtin.debug:
+        msg: "Freezing filesystem on {{ volume_id }} for consistent snapshot"
+
+    - name: Create EBS snapshot
+      ansible.builtin.debug:
+        msg: "Creating snapshot {{ snapshot_label }} for volume {{ volume_id }}"
+
+    - name: Unfreeze filesystem
+      ansible.builtin.debug:
+        msg: "Thawing filesystem — writes resumed"
+
+    - name: Tag snapshot for retention policy
+      ansible.builtin.debug:
+        msg: "Snapshot tagged: label={{ snapshot_label }}, retention={{ retention_days | default(30) }} days"
