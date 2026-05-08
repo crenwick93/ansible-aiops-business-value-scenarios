@@ -27,9 +27,8 @@
           IMPORTANT: Your response MUST be formatted as HTML (not markdown). Use <h3> for section headings, <p> for paragraphs, <ol>/<li> for numbered steps, <code> for commands and paths, and <strong> for emphasis.
 
           Sections required:
-          1. Root Cause — a concise explanation of what failed and why
+          1. Root Cause — a detailed explanation of what failed and why, referencing specific components and evidence from the diagnostics
           2. Step-by-Step Remediation — numbered steps an operator should follow to resolve this now, including specific commands, config changes, or service restarts
-          3. Prevention — what should change to stop this recurring
 
           ---
           Incident: {{ incident_description | default('No incident description provided.') }}
