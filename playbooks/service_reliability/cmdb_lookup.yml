@@ -6,18 +6,16 @@
   tasks:
 
     - name: Query incident details
-      servicenow.itsm.api:
+      servicenow.itsm.api_info:
         resource: incident
-        action: list
-        data:
-          sysparm_query: "sys_id={{ incident_sys_id }}"
-          sysparm_fields: "sys_id,short_description,business_service"
-          sysparm_limit: 1
+        sysparm_query: "sys_id={{ incident_sys_id }}"
+        sysparm_fields: "sys_id,short_description,business_service"
+        sysparm_limit: 1
       register: incident_result
 
     - name: Extract business service from incident
       ansible.builtin.set_fact:
-        business_service_id: "{{ incident_result.record[0].business_service | default('') }}"
+        business_service_id: "{{ incident_result.record[0].business_service.value | default('') }}"
         incident_short_desc: "{{ incident_result.record[0].short_description | default('') }}"
 
     - name: Fail if no business service on incident
@@ -26,16 +24,14 @@
       when: business_service_id == ''
 
     - name: Query CMDB relationships for service components
-      servicenow.itsm.api:
+      servicenow.itsm.api_info:
         resource: cmdb_rel_ci
-        action: list
-        data:
-          sysparm_query: "parent={{ business_service_id }}"
+        sysparm_query: "parent={{ business_service_id }}"
       register: rel_result
 
     - name: Collect child CI sys_ids
       ansible.builtin.set_fact:
-        child_ci_ids: "{{ rel_result.record | map(attribute='child') | list }}"
+        child_ci_ids: "{{ rel_result.record | map(attribute='child.value') | list }}"
 
     - name: Query each component CI for details
       servicenow.itsm.configuration_item_info:
