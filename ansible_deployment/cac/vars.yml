@@ -624,7 +624,7 @@ eda_rulebook_activations:
     description: "Watches for new/escalated ServiceNow incidents and triggers diagnostics workflow"
     organization: "Service Reliability"
     project: "Incident Response Automation"
-    rulebook: "rulebooks/service_reliability/servicenow_incident_rulebook.yml"
+    rulebook: "service_reliability/servicenow_incident_rulebook.yml"
     decision_environment: "snow-de"
     eda_credentials:
       - "ServiceNow ITSM"
