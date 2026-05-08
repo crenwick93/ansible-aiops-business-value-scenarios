@@ -1,6 +1,6 @@
 ---
 - name: Check Volume Health
-  hosts: "{{ target_hosts | default('all') }}"
+  hosts: "{{ target_hosts | default('storage_servers') }}"
   become: true
   gather_facts: true
   tasks:
