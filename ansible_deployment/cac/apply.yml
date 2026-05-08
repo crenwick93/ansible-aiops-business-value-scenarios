@@ -22,8 +22,7 @@
     sn_username: "{{ lookup('env', 'SERVICENOW_USERNAME') | default(omit, true) }}"
     sn_password: "{{ lookup('env', 'SERVICENOW_PASSWORD') | default(omit, true) }}"
 
-    # ALIA token (required)
-    alia_token: "{{ lookup('env', 'ALIA_TOKEN') | default(omit, true) }}"
+    # ALIA uses the same AAP gateway token — no separate variable needed
 
     # Monitoring SSH key (EC2 instance provisioned by Terraform — used for Machine credentials)
     monitoring_ssh_key: "{{ lookup('file', monitoring_ssh_key_path, errors='ignore') | default(omit, true) }}"

@@ -263,11 +263,11 @@ controller_credentials:
       verify_ssl: "{{ aap_validate_certs }}"
 
   - name: "ALIA API"
-    description: "Bearer token for Ansible Lightspeed Intelligent Assist"
+    description: "Bearer token for Ansible Lightspeed Intelligent Assist (uses AAP gateway auth)"
     organization: "Service Reliability"
     credential_type: "ALIA Token"
     inputs:
-      ALIA_TOKEN: "{{ alia_token }}"
+      ALIA_TOKEN: "{{ aap_token }}"
 
   - name: "Platform SSH"
     description: "SSH key for all managed hosts (cross-cutting access)"
@@ -342,6 +342,17 @@ controller_templates:
     credentials:
       - "ServiceNow ITSM"
       - "ALIA API"
+
+  - name: "Update SNOW Incident"
+    description: "Post AI analysis to ServiceNow incident work notes and advance state"
+    organization: "Service Reliability"
+    job_type: "run"
+    project: "Incident Response Automation"
+    playbook: "playbooks/service_reliability/update_incident.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
+    credentials:
+      - "ServiceNow ITSM"
 
   - name: "Replay Held Messages"
     description: "Replay messages from Kafka DLQ back to the correct topic after routing fix"
@@ -582,6 +593,11 @@ controller_workflows:
       - identifier: "AI Router"
         unified_job_template: "AI Router"
         all_parents_must_converge: true
+        success_nodes:
+          - "Update SNOW Incident"
+
+      - identifier: "Update SNOW Incident"
+        unified_job_template: "Update SNOW Incident"
 
 # -----------------------------------------------------------------------------
 # EDA — Service Reliability

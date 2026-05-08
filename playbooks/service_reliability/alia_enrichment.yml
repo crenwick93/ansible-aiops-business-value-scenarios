@@ -1,39 +1,33 @@
 ---
-- name: ALIA Enrichment - Send diagnostics to AI agent
+- name: AI Router - Analyse diagnostics and recommend remediation
   hosts: localhost
   gather_facts: false
 
   vars:
-    alia_base_url: "https://aap.sandbox2797.opentlc.com"
+    alia_base_url: "{{ lookup('env', 'AAP_HOSTNAME') | default('https://aap.sandbox2797.opentlc.com', true) | regex_replace('/+$', '') }}"
     alia_token: "{{ lookup('env', 'ALIA_TOKEN') }}"
     validate_tls: false
     request_timeout: 120
 
   tasks:
-    # ── Pass 1: RCA + MCP — analyse diagnostics and find a job template ──
-    # We split the ALIA interaction into two passes because the model we are
-    # currently using (llama-scout-17b) struggles to perform analytical
-    # reasoning AND produce correctly formatted HTML in a single request —
-    # it tends to skip the MCP tool call when the prompt is too complex.
-    # We also explicitly name the MCP tool (job_templates_list) in the
-    # prompt because smaller models will misuse parameters or skip the
-    # tool call entirely when given vaguer instructions. A more capable
-    # model may be able to handle both passes in one and infer the correct
-    # tool without being told.
-    - name: Build analysis and MCP query
+
+    - name: Build root cause analysis query
       ansible.builtin.set_fact:
         rca_query: |-
+          You are an expert site reliability engineer performing root cause analysis.
+
           Based on the incident and diagnostics below, provide:
           1. Root cause analysis — what failed and why
-          2. Remediation steps — specific commands to fix the issue
-          3. Prevention recommendations
-          4. Use the job_templates_list tool to find which job template on my AAP controller could resolve this. Include the template name and ID. Do NOT launch any templates. Advise the operator to run the recommended template against host {{ target_hostname | default('unknown') }} ({{ target_host_ip | default('unknown') }}).
+          2. Remediation steps — specific actions to resolve the issue
+          3. Prevention recommendations — how to stop this recurring
 
-          Incident: {{ incident_description }}
+          Incident: {{ incident_description | default('No incident description provided.') }}
 
           Diagnostics: {{ diagnostics_report | default('No diagnostics report available.') }}
 
-    - name: Call ALIA for analysis and job template recommendation
+          Service components involved: {{ service_components | default([]) | join(', ') }}
+
+    - name: Call ALIA for root cause analysis
       ansible.builtin.uri:
         url: "{{ alia_base_url }}/api/lightspeed/v1/ai/chat/"
         method: POST
@@ -49,68 +43,16 @@
         timeout: "{{ request_timeout }}"
       register: rca_response
 
-    - name: Extract analysis from Pass 1
+    - name: Extract analysis
       ansible.builtin.set_fact:
-        rca_result: "{{ rca_response.json | default((rca_response.content | from_json), true) }}"
         alia_analysis: "{{ (rca_response.json | default((rca_response.content | from_json), true)).response | default('No analysis returned.') }}"
 
-    - name: Show ALIA analysis (Pass 1)
+    - name: Display analysis
       ansible.builtin.debug:
         msg: "{{ alia_analysis }}"
 
-    # ── Pass 2: Format the analysis as HTML for ServiceNow ────────────────
-    - name: Build formatting query
-      ansible.builtin.set_fact:
-        format_query: |-
-          You are formatting an IT operations analysis for a ServiceNow work notes field.
-
-          Take the analysis below and format it as clean HTML. Do NOT use markdown.
-
-          FORMATTING RULES:
-          - Use <h3> for section headings
-          - Use <p> for paragraphs
-          - Use <ol>/<ul>/<li> for lists
-          - Use <code> for inline commands and file paths
-          - Use <pre> for multi-line error output or log excerpts
-          - Do NOT wrap the response in [code] tags
-          - Keep the response concise and actionable
-
-          --- Analysis to format ---
-          {{ alia_analysis }}
-
-    - name: Call ALIA to format analysis as HTML
-      ansible.builtin.uri:
-        url: "{{ alia_base_url }}/api/lightspeed/v1/ai/chat/"
-        method: POST
-        headers:
-          Authorization: "Bearer {{ alia_token }}"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          query: "{{ format_query }}"
-        return_content: true
-        status_code: 200
-        validate_certs: "{{ validate_tls }}"
-        timeout: "{{ request_timeout }}"
-      register: format_response
-
-    - name: Extract formatted response
-      ansible.builtin.set_fact:
-        alia_result: "{{ format_response.json | default((format_response.content | from_json), true) }}"
-
-    - name: Show worknotes (ServiceNow-ready)
-      ansible.builtin.debug:
-        msg: "{{ alia_result.response | default('No response returned.') }}"
-
-###############################################################################################
-#####################  UPLOAD REPORT TO SERVICE NOW  ##########################################
-- name: Upload ALIA analysis to ServiceNow
-  hosts: localhost
-  gather_facts: false
-  tasks:
-    - name: Update incident with ALIA analysis
-      servicenow.itsm.incident:
-        sys_id: "{{ incident_sys_id }}"
-        state: 2
-        other:
-          work_notes: "[code]{{ alia_result.response | default('no response returned') }}[/code]"
+    - name: Publish analysis for downstream workflow steps
+      ansible.builtin.set_stats:
+        data:
+          alia_analysis: "{{ alia_analysis }}"
+          incident_sys_id: "{{ incident_sys_id }}"

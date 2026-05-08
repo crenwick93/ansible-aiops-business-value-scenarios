@@ -1,0 +1,26 @@
+---
+- name: Update SNOW Incident - Post analysis to work notes
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+
+    - name: Format analysis as HTML for ServiceNow
+      ansible.builtin.set_fact:
+        work_notes_html: |-
+          <h3>Automated Diagnostics Report</h3>
+          <p><strong>Incident:</strong> {{ incident_description | default('N/A') }}</p>
+          <h4>AI Analysis</h4>
+          <pre>{{ alia_analysis | default('No analysis available.') }}</pre>
+
+    - name: Update incident with analysis and set to In Progress
+      servicenow.itsm.incident:
+        sys_id: "{{ incident_sys_id }}"
+        state: in_progress
+        other:
+          work_notes: "[code]{{ work_notes_html }}[/code]"
+      register: updated_incident
+
+    - name: Confirm update
+      ansible.builtin.debug:
+        msg: "Incident {{ updated_incident.record.number }} updated with AI analysis — state set to In Progress"
