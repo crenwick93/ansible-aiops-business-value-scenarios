@@ -403,7 +403,7 @@ controller_templates:
     description: "Check health endpoints for CMDB-identified application components"
     organization: "Application Services"
     job_type: "run"
-    project: "Incident Response Automation"
+    project: "Application Automation"
     playbook: "playbooks/application_services/diagnose_application.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
@@ -437,7 +437,7 @@ controller_templates:
     description: "Check topic health and DLQ status for CMDB-identified message brokers"
     organization: "Middleware Services"
     job_type: "run"
-    project: "Incident Response Automation"
+    project: "Middleware Automation"
     playbook: "playbooks/middleware_services/diagnose_message_queue.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
@@ -471,7 +471,7 @@ controller_templates:
     description: "Check storage backend health and connectivity for CMDB-identified data stores"
     organization: "Storage Services"
     job_type: "run"
-    project: "Incident Response Automation"
+    project: "Storage Automation"
     playbook: "playbooks/storage_services/diagnose_storage.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
