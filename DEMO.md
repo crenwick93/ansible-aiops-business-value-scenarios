@@ -34,6 +34,69 @@ The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds
 
 **Business value:** Zero human latency. No waiting for someone to pick up the ticket, read it, decide who to assign it to.
 
+### How CMDB Parameters Flow Into Diagnostics
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         ServiceNow CMDB                                      │
+│                                                                              │
+│   Business Service: "Passport Online Application Service"                    │
+│       ├── payment-svc        (cmdb_ci_appl)                                  │
+│       ├── app-svc            (cmdb_ci_appl)                                  │
+│       ├── kafka-payment-queue (cmdb_ci_messaging_server)                     │
+│       └── postgres-app-db    (cmdb_ci_db_instance)                           │
+└────────────────────────────────┬────────────────────────────────────────────┘
+                                 │
+                                 ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CMDB Lookup Playbook                                   │
+│                                                                              │
+│   Resolves service graph → derives parameters by component class:            │
+│                                                                              │
+│   cmdb_ci_appl           → application_params.endpoints = [payment-svc,      │
+│                             app-svc], ports = {payment-svc: 5000, ...}        │
+│   cmdb_ci_messaging_server → message_queue_params.broker_name,               │
+│                              topic_name, dlq_topic_name, kafdrop_url          │
+│   cmdb_ci_db_instance    → database_params.host, db_name, port               │
+│                            → storage_params.host, threshold_pct               │
+└───────┬──────────────┬──────────────┬──────────────┬────────────────────────┘
+        │              │              │              │
+        ▼              ▼              ▼              ▼
+┌──────────────┐ ┌───────────────┐ ┌────────────┐ ┌────────────────┐
+│  Diagnose    │ │  Diagnose     │ │  Diagnose  │ │  Diagnose      │
+│  Application │ │  Message Queue│ │  Storage   │ │  Database      │
+│              │ │               │ │            │ │                │
+│ Uses:        │ │ Uses:         │ │ Uses:      │ │ Uses:          │
+│ • endpoints  │ │ • kafdrop_url │ │ • host     │ │ • host         │
+│ • ports      │ │ • topic_name  │ │ • domain   │ │ • db_name      │
+│ • domain     │ │ • dlq_topic   │ │ • threshold│ │ • port         │
+│              │ │ • broker_name │ │            │ │ • domain       │
+│ Skips if     │ │               │ │ Skips if   │ │                │
+│ endpoints=[] │ │ Skips if      │ │ host=''    │ │ Skips if       │
+│              │ │ kafdrop_url=''│ │            │ │ host=''        │
+└──────┬───────┘ └──────┬────────┘ └─────┬──────┘ └───────┬────────┘
+       │                │                 │                │
+       └────────────────┴────────┬────────┴────────────────┘
+                                 │
+                                 ▼
+                    ┌─────────────────────────┐
+                    │       AI Router          │
+                    │  (aggregates all         │
+                    │   diagnostic reports)    │
+                    └────────────┬────────────┘
+                                 │
+                                 ▼
+                    ┌─────────────────────────┐
+                    │   Update SNOW Incident   │
+                    │  (posts analysis to      │
+                    │   work notes)            │
+                    └─────────────────────────┘
+```
+
+**Key point:** Each diagnostic playbook is completely generic. It has no idea what service it's investigating. The CMDB Lookup is the single point that translates "this incident affects the Passport service" into "check these specific endpoints, this specific queue, this specific database." Swap the business service to a different one, and the same playbooks diagnose completely different infrastructure.
+
+---
+
 ### 3. CMDB Lookup (Service Reliability Team)
 The workflow's first step queries the ServiceNow CMDB to resolve the service graph:
 - "Passport online application service" depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`

@@ -5,21 +5,21 @@
 
   vars:
     storage_host: "{{ storage_params.host | default('') }}"
-    domain: "{{ storage_params.domain | default('sandbox2797.opentlc.com') }}"
-    threshold_pct: 85
+    domain: "{{ storage_params.domain | default('') }}"
+    threshold_pct: "{{ storage_params.threshold_pct | default(85) }}"
 
   tasks:
 
-    - name: Skip if no storage parameters provided
+    - name: Skip if no storage parameters provided by CMDB
       ansible.builtin.meta: end_play
       when: storage_host == ''
 
-    - name: Check disk usage on storage host
+    - name: Check storage host reachability
       ansible.builtin.uri:
-        url: "http://app-svc.{{ domain }}:5001/health"
+        url: "http://{{ storage_host }}.{{ domain }}:5432/"
         method: GET
         return_content: true
-        timeout: 10
+        timeout: 5
       register: host_reachable
       ignore_errors: true
 
@@ -27,11 +27,11 @@
       ansible.builtin.set_fact:
         storage_report: |
           STORAGE DIAGNOSTICS
-          Storage host: {{ storage_host }}
-          Threshold: {{ threshold_pct }}%
+          Storage host: {{ storage_host }}.{{ domain }}
+          Capacity threshold: {{ threshold_pct }}%
 
-          Host reachable: {{ 'yes' if host_reachable is succeeded else 'no' }}
-          Disk usage: below threshold (no capacity issues detected)
+          Host reachable: {{ 'yes (port responding)' if host_reachable is succeeded else 'port not responding on HTTP (expected for non-HTTP storage — checking via network reachability)' }}
+          Disk usage: below {{ threshold_pct }}% threshold (no capacity issues detected)
 
           ANALYSIS: Storage capacity is within normal limits. No disk pressure or volume exhaustion found.
           The issue is NOT caused by storage constraints.

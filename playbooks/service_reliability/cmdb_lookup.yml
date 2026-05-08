@@ -48,27 +48,33 @@
              | selectattr('name', 'defined')
              | list }}
 
+    - name: Identify components by CMDB class
+      ansible.builtin.set_fact:
+        queue_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_messaging_server') | list }}"
+        app_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_appl') | list }}"
+        db_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | list }}"
+
     - name: Derive diagnostic parameters from CMDB component classes
       ansible.builtin.set_fact:
         message_queue_params:
           kafdrop_url: "http://dashboard.{{ demo_domain }}:9000"
-          topic_name: "payments"
-          dlq_topic_name: "payments.dlq"
-          broker_name: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_messaging_server') | map(attribute='name') | first | default('unknown') }}"
+          topic_name: "{{ queue_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('payments') }}"
+          dlq_topic_name: "{{ queue_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('payments') }}.dlq"
+          broker_name: "{{ queue_components | map(attribute='name') | first | default('') }}"
         application_params:
-          endpoints: >-
-            {{ component_details
-               | selectattr('sys_class_name', 'equalto', 'cmdb_ci_appl')
-               | list
-               | map(attribute='name')
-               | list }}
+          endpoints: "{{ app_components | map(attribute='name') | list }}"
+          ports:
+            payment-svc: 5000
+            app-svc: 5001
           domain: "{{ demo_domain }}"
         storage_params:
-          host: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | map(attribute='name') | first | default('') }}"
+          host: "{{ db_components | map(attribute='name') | first | default('') }}"
           domain: "{{ demo_domain }}"
+          threshold_pct: 85
         database_params:
-          host: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | map(attribute='name') | first | default('') }}"
-          db_name: "passports"
+          host: "{{ db_components | map(attribute='name') | first | default('') }}"
+          db_name: "{{ db_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('app_db') }}"
+          port: 5432
           domain: "{{ demo_domain }}"
 
     - name: Display resolved service graph
@@ -81,8 +87,9 @@
 
           Diagnostic parameters derived:
             Message Queue: broker={{ message_queue_params.broker_name }}, topic={{ message_queue_params.topic_name }}, dlq={{ message_queue_params.dlq_topic_name }}
-            Applications: {{ application_params.endpoints }}
-            Storage: {{ storage_params.host }}
+            Applications: {{ application_params.endpoints }} (ports: {{ application_params.ports }})
+            Storage: host={{ storage_params.host }}, threshold={{ storage_params.threshold_pct }}%
+            Database: host={{ database_params.host }}, db={{ database_params.db_name }}, port={{ database_params.port }}
 
     - name: Publish parameters for downstream diagnostic nodes
       ansible.builtin.set_stats:

@@ -5,20 +5,19 @@
 
   vars:
     app_endpoints: "{{ application_params.endpoints | default([]) }}"
-    domain: "{{ application_params.domain | default('sandbox2797.opentlc.com') }}"
-    port_map:
-      payment-svc: 5000
-      app-svc: 5001
+    app_ports: "{{ application_params.ports | default({}) }}"
+    domain: "{{ application_params.domain | default('') }}"
+    default_port: 5000
 
   tasks:
 
-    - name: Skip if no application parameters provided
+    - name: Skip if no application parameters provided by CMDB
       ansible.builtin.meta: end_play
       when: app_endpoints | length == 0
 
     - name: Check health endpoint for each application
       ansible.builtin.uri:
-        url: "http://{{ item }}.{{ domain }}:{{ port_map[item] | default(5000) }}/health"
+        url: "http://{{ item }}.{{ domain }}:{{ app_ports[item] | default(default_port) }}/health"
         method: GET
         return_content: true
         timeout: 10
@@ -35,14 +34,12 @@
 
           {% for result in health_results.results %}
           {{ result.item }}:
-            URL: http://{{ result.item }}.{{ domain }}:{{ port_map[result.item] | default(5000) }}/health
+            URL: http://{{ result.item }}.{{ domain }}:{{ app_ports[result.item] | default(default_port) }}/health
             HTTP status: {{ result.status | default('unreachable') }}
             Response: {{ result.json | default('no response') }}
           {% endfor %}
 
-          ANALYSIS: All application services report healthy. The issue is NOT a service outage.
-          When services are up but citizen applications are stuck, the problem is typically
-          a configuration or routing issue at the application layer — not infrastructure failure.
+          ANALYSIS: {% if health_results.results | selectattr('failed', 'equalto', true) | list | length > 0 %}One or more application endpoints are unreachable — possible service outage or deployment issue.{% else %}All application services report healthy. The issue is NOT a service outage. When services are up but processing is stalled, the problem is typically a configuration or routing issue — not infrastructure failure.{% endif %}
 
     - name: Display report
       ansible.builtin.debug:
