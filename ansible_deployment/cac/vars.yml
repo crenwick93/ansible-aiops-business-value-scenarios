@@ -329,8 +329,10 @@ controller_templates:
     credentials:
       - "ServiceNow ITSM"
 
-  - name: "ALIA Enrichment"
-    description: "Send diagnostics to ALIA for root cause analysis, job template recommendation via MCP, and ServiceNow update"
+  # Uses ALIA (Ansible Lightspeed Intelligent Assist) but designed as a generic
+  # AI routing point — swap in any LLM/agent backend without changing the workflow.
+  - name: "AI Router"
+    description: "Route diagnostic output to AI agent for root cause analysis, remediation recommendation, and incident enrichment"
     organization: "Service Reliability"
     job_type: "run"
     project: "Incident Response Automation"
@@ -552,33 +554,33 @@ controller_workflows:
     organization: "Service Reliability"
     ask_variables_on_launch: true
     simplified_workflow_nodes:
-      - identifier: cmdb_lookup
+      - identifier: "CMDB Lookup"
         unified_job_template: "CMDB Lookup"
         success_nodes:
-          - check_app_health
-          - check_consumer_lag
-          - check_volume_health
+          - "Check Application Health"
+          - "Check Consumer Lag"
+          - "Check Volume Health"
 
-      - identifier: check_app_health
+      - identifier: "Check Application Health"
         unified_job_template: "Check Application Health"
         organization: "Application Services"
         success_nodes:
-          - alia_enrichment
+          - "AI Router"
 
-      - identifier: check_consumer_lag
+      - identifier: "Check Consumer Lag"
         unified_job_template: "Check Consumer Lag"
         organization: "Middleware Services"
         success_nodes:
-          - alia_enrichment
+          - "AI Router"
 
-      - identifier: check_volume_health
+      - identifier: "Check Volume Health"
         unified_job_template: "Check Volume Health"
         organization: "Storage Services"
         success_nodes:
-          - alia_enrichment
+          - "AI Router"
 
-      - identifier: alia_enrichment
-        unified_job_template: "ALIA Enrichment"
+      - identifier: "AI Router"
+        unified_job_template: "AI Router"
         all_parents_must_converge: true
 
 # -----------------------------------------------------------------------------
