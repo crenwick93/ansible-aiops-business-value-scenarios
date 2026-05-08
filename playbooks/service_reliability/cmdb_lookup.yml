@@ -28,7 +28,7 @@
 
     - name: Collect child CI sys_ids
       ansible.builtin.set_fact:
-        child_ci_ids: "{{ rel_result.record.outbound_relations | map(attribute='target.sys_id') | list }}"
+        child_ci_ids: "{{ rel_result.record.outbound_relations | map(attribute='target.value') | list }}"
 
     - name: Query each component CI for details
       servicenow.itsm.configuration_item_info:
