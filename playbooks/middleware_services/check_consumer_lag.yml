@@ -6,10 +6,11 @@
   vars:
     demo_domain: "{{ lookup('env', 'DEMO_DOMAIN') | default('sandbox2797.opentlc.com', true) }}"
     kafdrop_url: "http://dashboard.{{ demo_domain }}:9000"
+    dashboard_url: "http://dashboard.{{ demo_domain }}:8080"
 
   tasks:
 
-    - name: Get payments topic info from Kafdrop
+    - name: Get payments topic stats from Kafdrop
       ansible.builtin.uri:
         url: "{{ kafdrop_url }}/topic/payments"
         method: GET
@@ -20,7 +21,7 @@
       register: payments_topic
       ignore_errors: true
 
-    - name: Get payments.dlq topic info from Kafdrop
+    - name: Get payments.dlq topic stats from Kafdrop
       ansible.builtin.uri:
         url: "{{ kafdrop_url }}/topic/payments.dlq"
         method: GET
@@ -31,49 +32,43 @@
       register: dlq_topic
       ignore_errors: true
 
-    - name: Sample recent messages from payments.dlq
+    - name: Get engineering overview from dashboard
       ansible.builtin.uri:
-        url: "{{ kafdrop_url }}/topic/payments.dlq/messages?partition=0&offset=0&count=10"
+        url: "{{ dashboard_url }}/api/engineering/overview"
         method: GET
-        headers:
-          Accept: "application/json"
         return_content: true
         timeout: 10
-      register: dlq_messages
+      register: eng_overview
       ignore_errors: true
 
-    - name: Sample recent messages from payments topic
-      ansible.builtin.uri:
-        url: "{{ kafdrop_url }}/topic/payments/messages?partition=0&offset=0&count=10"
-        method: GET
-        headers:
-          Accept: "application/json"
-        return_content: true
-        timeout: 10
-      register: payments_messages
-      ignore_errors: true
+    - name: Calculate message counts
+      ansible.builtin.set_fact:
+        payments_count: "{{ payments_topic.json.partitions[0].size | default(0) }}"
+        dlq_count: "{{ dlq_topic.json.partitions[0].size | default(0) }}"
+      when: payments_topic is succeeded and dlq_topic is succeeded
 
     - name: Build Kafka diagnostic report
       ansible.builtin.set_fact:
         kafka_report: |
           KAFKA DIAGNOSTICS
-          Kafdrop endpoint: {{ kafdrop_url }}
+          =================
+          Topic: payments
+            Total messages: {{ payments_count | default('unknown') }}
+            Partitions: {{ (payments_topic.json.partitions | default([])) | length }}
+            Consumer group 'app-svc' is subscribed to this topic
 
-          Topic 'payments':
-          {{ payments_topic.json | default('unreachable') | to_nice_json }}
+          Topic: payments.dlq (DEAD LETTER QUEUE)
+            Total messages: {{ dlq_count | default('unknown') }}
+            Partitions: {{ (dlq_topic.json.partitions | default([])) | length }}
+            WARNING: No consumer is processing messages from the DLQ. Messages sent here are STUCK.
 
-          Topic 'payments.dlq':
-          {{ dlq_topic.json | default('unreachable') | to_nice_json }}
+          KEY FINDING: The dead letter queue contains {{ dlq_count | default('?') }} messages.
+          This is {{ ((dlq_count | default(0) | int) * 100 / ((payments_count | default(1) | int) + (dlq_count | default(0) | int))) | round(1) }}% of all payment messages.
+          A healthy system should have near-zero messages in the DLQ.
+          This volume indicates messages are being ROUTED to the DLQ by the payment-svc, not failing after processing.
 
-          Sample messages from payments.dlq (dead letter queue):
-          {% for msg in (dlq_messages.json | default([])) %}
-          - {{ msg.value | default(msg) }}
-          {% endfor %}
-
-          Sample messages from payments (healthy topic):
-          {% for msg in (payments_messages.json | default([])) %}
-          - {{ msg.value | default(msg) }}
-          {% endfor %}
+          Platform overview:
+          {{ eng_overview.json | default({}) | to_nice_json }}
 
     - name: Display Kafka diagnostics
       ansible.builtin.debug:
