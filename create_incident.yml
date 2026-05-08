@@ -13,6 +13,15 @@
     caller_name: "{{ lookup('env', 'SERVICENOW_CALLER_NAME') | default('Chris Renwick', true) | lower | replace(' ', '.') }}"
 
   tasks:
+    - name: Look up business service sys_id
+      servicenow.itsm.configuration_item_info:
+        name: "Passport online application service"
+      register: service_lookup
+
+    - name: Set business service ID
+      ansible.builtin.set_fact:
+        business_service_id: "{{ service_lookup.records[0].sys_id }}"
+
     - name: Create incident
       servicenow.itsm.incident:
         state: new
@@ -37,7 +46,7 @@
         urgency: high
         other:
           category: software
-          business_service: "Passport online application service"
+          business_service: "{{ business_service_id }}"
           assignment_group: "Service Reliability"
       register: incident
 
