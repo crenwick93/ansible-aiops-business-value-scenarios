@@ -132,6 +132,66 @@ IP_KEY_MAP = {
 }
 
 
+ASSIGNMENT_GROUPS = [
+    "Service Reliability",
+    "Application Services",
+    "Middleware Services",
+    "Storage Services",
+    "Database Operations",
+]
+
+
+def create_assignment_groups() -> None:
+    """Create assignment groups (sys_user_group) if they don't exist."""
+    print("\nAssignment groups:")
+    for name in ASSIGNMENT_GROUPS:
+        query = f"name={name}"
+        existing = find_existing("sys_user_group", query)
+        if existing:
+            print(f"  EXISTS  {name}  sys_id={existing['sys_id']}")
+            continue
+        data = {
+            "name": name,
+            "description": f"{DEMO_TAG} {name} team",
+            "type": "itil",
+        }
+        r = session.post(snow_url("/api/now/table/sys_user_group"), json=data)
+        r.raise_for_status()
+        sys_id = r.json()["result"]["sys_id"]
+        print(f"  CREATED {name}  sys_id={sys_id}")
+
+
+def create_caller_user() -> None:
+    """Create the demo caller user (sys_user) if they don't exist."""
+    caller_name = os.environ.get("SERVICENOW_CALLER_NAME", "").strip()
+    if not caller_name:
+        print("\nCaller: SERVICENOW_CALLER_NAME not set, skipping")
+        return
+
+    parts = caller_name.split(None, 1)
+    first_name = parts[0]
+    last_name = parts[1] if len(parts) > 1 else ""
+
+    print(f"\nCaller user:")
+    query = f"first_name={first_name}^last_name={last_name}"
+    existing = find_existing("sys_user", query)
+    if existing:
+        print(f"  EXISTS  {caller_name}  sys_id={existing['sys_id']}")
+        return
+
+    data = {
+        "first_name": first_name,
+        "last_name": last_name,
+        "user_name": caller_name.lower().replace(" ", "."),
+        "email": f"{caller_name.lower().replace(' ', '.')}@example.com",
+        "title": "Demo Caller",
+    }
+    r = session.post(snow_url("/api/now/table/sys_user"), json=data)
+    r.raise_for_status()
+    sys_id = r.json()["result"]["sys_id"]
+    print(f"  CREATED {caller_name}  sys_id={sys_id}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Set up AIOps demo CMDB in ServiceNow")
     parser.add_argument(
@@ -146,6 +206,8 @@ def main() -> int:
             return 1
 
     configure_session()
+    create_assignment_groups()
+    create_caller_user()
     ip_overrides = load_ip_overrides(args.ip_file)
 
     with open(CI_DEFS_PATH) as f:

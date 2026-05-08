@@ -1,41 +1,72 @@
 ---
-- name: CMDB Lookup - Resolve affected host from incident
+- name: CMDB Lookup - Resolve service components from incident
   hosts: localhost
   gather_facts: false
 
   tasks:
 
-    - name: Query incident to get CMDB CI reference
+    - name: Query incident details
       servicenow.itsm.incident_info:
         sys_id: "{{ incident_sys_id }}"
       register: incident_result
 
-    - name: Extract CMDB CI sys_id from incident
+    - name: Extract business service from incident
       ansible.builtin.set_fact:
-        cmdb_ci_sys_id: "{{ incident_result.records[0].cmdb_ci.value | default(incident_result.records[0].cmdb_ci) }}"
+        business_service_id: "{{ incident_result.records[0].business_service.value | default('') }}"
+        incident_short_desc: "{{ incident_result.records[0].short_description | default('') }}"
 
-    - name: Query CMDB for configuration item details
+    - name: Fail if no business service on incident
+      ansible.builtin.fail:
+        msg: "Incident {{ incident_sys_id }} has no business service set — cannot resolve components"
+      when: business_service_id == ''
+
+    - name: Query CMDB relationships for service components
+      servicenow.itsm.api:
+        resource: cmdb_rel_ci
+        action: list
+        data:
+          sysparm_query: "parent={{ business_service_id }}"
+      register: rel_result
+
+    - name: Collect child CI sys_ids
+      ansible.builtin.set_fact:
+        child_ci_ids: "{{ rel_result.record | map(attribute='child.value') | list }}"
+
+    - name: Query each component CI for details
       servicenow.itsm.configuration_item_info:
-        sys_id: "{{ cmdb_ci_sys_id }}"
-      register: ci_result
+        sys_id: "{{ item }}"
+      loop: "{{ child_ci_ids }}"
+      register: ci_results
 
-    - name: Extract host IP and hostname from CMDB CI
+    - name: Build component summary
       ansible.builtin.set_fact:
-        target_host_ip: "{{ ci_result.records[0].ip_address }}"
-        target_hostname: "{{ ci_result.records[0].fqdn | default(ci_result.records[0].name) }}"
+        service_components: >-
+          {{ ci_results.results
+             | map(attribute='records')
+             | map('first')
+             | selectattr('name', 'defined')
+             | map(attribute='name')
+             | list }}
+        component_details: >-
+          {{ ci_results.results
+             | map(attribute='records')
+             | map('first')
+             | selectattr('name', 'defined')
+             | list }}
 
-    - name: Show resolved host
+    - name: Display resolved service graph
       ansible.builtin.debug:
-        msg: "CMDB resolved host: {{ target_hostname }} ({{ target_host_ip }})"
+        msg: |
+          Business service components resolved from CMDB:
+          {% for ci in component_details %}
+            - {{ ci.name }} ({{ ci.sys_class_name }}) — IP: {{ ci.ip_address | default('N/A') }}
+          {% endfor %}
 
-    - name: Publish target host details for next workflow step
+    - name: Publish service component data for downstream workflow steps
       ansible.builtin.set_stats:
         data:
-          target_host_ip: "{{ target_host_ip }}"
-          target_hostname: "{{ target_hostname }}"
           incident_sys_id: "{{ incident_sys_id }}"
-          incident_description: "{{ incident_description }}"
-
-    - name: Pause for demo visibility
-      ansible.builtin.pause:
-        seconds: 10
+          incident_description: "{{ incident_description | default(incident_short_desc) }}"
+          business_service_id: "{{ business_service_id }}"
+          service_components: "{{ service_components }}"
+          component_details: "{{ component_details }}"
