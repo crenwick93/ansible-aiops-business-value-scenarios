@@ -38,38 +38,51 @@ The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds
 The workflow's first step queries the ServiceNow CMDB to resolve the service graph:
 - "Passport online application service" depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`
 
-It then derives **operational parameters** from the CMDB — topic names, service URLs, storage hosts — and passes them to the diagnostic steps.
+It then **derives operational parameters** from each CMDB component record — based on the component's class — and publishes them for the downstream diagnostic nodes:
 
-**Business value:** The CMDB tells us WHERE to look. In an enterprise with hundreds of services and thousands of components, you can't run diagnostics on everything. The service graph scopes the investigation to only the relevant components.
+| CMDB Component | Class | Parameters Derived |
+|---------------|-------|-------------------|
+| `kafka-payment-queue` | Message Queue | Kafdrop URL, topic name (`payments`), DLQ topic name (`payments.dlq`), broker hostname |
+| `payment-svc` / `app-svc` | Application | Health endpoint URLs for each service |
+| `postgres-app-db` | Database Instance | Database hostname, database name (`passports`) |
+| (storage host) | Database Instance | Storage hostname for disk capacity checks |
 
-**Why this matters for the narrative:** Without this step, you'd need a human to manually figure out which systems are involved. That's tribal knowledge that lives in people's heads, is lost when they leave, and takes time to recall at 3am.
+**This is critical:** The diagnostic playbooks are generic — they don't know about passports, Kafka topic names, or which database to check. The CMDB provides those parameters. Without the CMDB Lookup, the diagnostics literally don't know what to target.
 
-### 4. Parallel Diagnostics (Three Teams, Simultaneously)
+**Why this matters at scale:** An enterprise has hundreds of message queues with different names, thousands of database instances, and complex service dependencies. When an incident arrives, the CMDB Lookup answers the question: "For *this* service, which specific queue, which database, which application endpoints need checking?" No human has to remember that. No runbook goes stale.
 
-The workflow fans out to three different organisational teams — all running in parallel:
+**The alternative (without CMDB):** A human receives the ticket, thinks "Passport service... I think that uses Kafka... the topic might be called payments... or maybe passport-payments? Let me check... who manages that queue again?" — 30 minutes gone before diagnostics even start.
 
-| Node | Team | What it does |
-|------|------|-------------|
-| Diagnose Application | Application Services | Checks health endpoints for payment-svc and app-svc |
-| Diagnose Message Queue | Middleware Services | Queries Kafka via Kafdrop — topic stats, DLQ message counts |
-| Diagnose Storage | Storage Services | Checks disk/storage capacity on affected hosts |
+### 4. Parallel Diagnostics (Four Teams, Simultaneously)
 
-Each diagnostic playbook is **generic and reusable**. It doesn't know about passports or payments — it receives parameters from the CMDB Lookup (topic names, URLs, hostnames) and runs its standard checks against those targets.
+The workflow fans out to four different organisational teams — all running in parallel:
 
-**Business value:** Three teams' expertise encoded as automation, running simultaneously. In the manual world, you'd raise a ticket to each team, wait for them to investigate one at a time, and hope they report back. Here it takes 5 seconds total.
+| Node | Team | What it checks | Parameters from CMDB |
+|------|------|---------------|---------------------|
+| Diagnose Application | Application Services | Health endpoints for payment-svc and app-svc | Endpoint URLs |
+| Diagnose Message Queue | Middleware Services | Kafka topic stats, DLQ message counts via Kafdrop | Topic name, DLQ name, Kafdrop URL |
+| Diagnose Storage | Storage Services | Disk capacity on the storage host | Hostname |
+| Diagnose Database | Database Services | Database connectivity and query health | DB hostname, DB name |
 
-**The cross-silo story:** Each team owns and maintains their own diagnostic playbooks. The Service Reliability team orchestrates them via the workflow. Nobody had to build a monolithic "check everything" script — each team contributed their domain expertise independently.
+Each diagnostic playbook is **generic and reusable**. It doesn't know about passports or payments — it receives parameters from the CMDB Lookup (topic names, URLs, hostnames, DB names) and runs its standard checks against those targets. If the CMDB didn't identify a relevant component for a team, that diagnostic **skips cleanly** — no errors, no wasted time.
+
+**Business value:** Four teams' expertise encoded as automation, running simultaneously. In the manual world, you'd raise a ticket to each team, wait for them to investigate one at a time, and hope they report back. Here it takes 5 seconds total.
+
+**The cross-silo story:** Each team owns and maintains their own diagnostic playbooks in their own AAP organisation. The Service Reliability team orchestrates them via the workflow. Nobody had to build a monolithic "check everything" script — each team contributed their domain expertise independently.
+
+**The CMDB connection:** Without step 3, these playbooks would either need to be hardcoded per-service (fragile, doesn't scale) or run against everything (slow, noisy). The CMDB makes them both generic AND precise — they know exactly what to check because the service graph told them.
 
 ### 5. AI Router (Service Reliability Team)
 All diagnostic results converge here. ALIA receives:
 - The incident description
 - The Kafka diagnostics (showing ~47% of payments are in the DLQ)
-- The application diagnostics (everything healthy)
+- The application diagnostics (all services healthy)
 - The storage diagnostics (capacity fine)
+- The database diagnostics (connections healthy)
 
 ALIA produces a structured root cause analysis with step-by-step remediation.
 
-**Business value:** The AI correlates data from three different domains simultaneously — something that would take a human engineer significant time to piece together. It identifies that the DLQ accumulation + healthy services = routing misconfiguration, not an outage.
+**Business value:** The AI correlates data from four different domains simultaneously — something that would take a human engineer significant time to piece together. It identifies that the DLQ accumulation + healthy services + healthy database = routing misconfiguration, not an outage or resource problem.
 
 ### 6. Update SNOW Incident (Service Reliability Team)
 The AI analysis is posted directly to the incident's work notes and the state is advanced to "In Progress".
@@ -90,7 +103,7 @@ The AI analysis is posted directly to the incident's work notes and the state is
 - New team members benefit from day one
 
 ### Team Collaboration Without Ticket Ping-Pong
-- Three teams' diagnostics run in parallel without any human coordination
+- Four teams' diagnostics run in parallel without any human coordination
 - No "I've checked my bit, it's not us, reassigning to middleware"
 - The workflow crosses organisational silos automatically
 
