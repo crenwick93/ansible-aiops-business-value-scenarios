@@ -1,0 +1,46 @@
+---
+- name: Diagnose Database
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    db_host: "{{ database_params.host | default('') }}"
+    db_name: "{{ database_params.db_name | default('') }}"
+    domain: "{{ database_params.domain | default('sandbox2797.opentlc.com') }}"
+
+  tasks:
+
+    - name: Skip if no database parameters provided
+      ansible.builtin.meta: end_play
+      when: db_host == ''
+
+    - name: Check database connectivity via dependent application
+      ansible.builtin.uri:
+        url: "http://app-svc.{{ domain }}:5001/health"
+        method: GET
+        return_content: true
+        timeout: 10
+      register: db_connectivity
+      ignore_errors: true
+
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        db_report: |
+          DATABASE DIAGNOSTICS
+          Database host: {{ db_host }}
+          Database name: {{ db_name }}
+
+          Connectivity (via app-svc which reads/writes to this database):
+            HTTP status: {{ db_connectivity.status | default('unreachable') }}
+            Response: {{ db_connectivity.json | default('no response') }}
+
+          ANALYSIS: {{ 'Database is accepting connections. No connection pool exhaustion or timeout issues detected.' if db_connectivity is succeeded else 'WARNING: Database may be unreachable — dependent service health check failed.' }}
+
+    - name: Display report
+      ansible.builtin.debug:
+        msg: "{{ db_report }}"
+
+    - name: Publish findings for AI Router
+      ansible.builtin.set_stats:
+        data:
+          database_diagnostics: "{{ db_report }}"

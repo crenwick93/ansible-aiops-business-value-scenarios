@@ -66,6 +66,10 @@
         storage_params:
           host: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | map(attribute='name') | first | default('') }}"
           domain: "{{ demo_domain }}"
+        database_params:
+          host: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | map(attribute='name') | first | default('') }}"
+          db_name: "passports"
+          domain: "{{ demo_domain }}"
 
     - name: Display resolved service graph
       ansible.builtin.debug:
@@ -89,3 +93,4 @@
           message_queue_params: "{{ message_queue_params }}"
           application_params: "{{ application_params }}"
           storage_params: "{{ storage_params }}"
+          database_params: "{{ database_params }}"

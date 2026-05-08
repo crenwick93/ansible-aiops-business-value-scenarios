@@ -17,6 +17,7 @@
           {{ kafka_diagnostics | default('') }}
           {{ application_diagnostics | default('') }}
           {{ storage_diagnostics | default('') }}
+          {{ database_diagnostics | default('') }}
 
     - name: Build root cause analysis query
       ansible.builtin.set_fact:

@@ -468,15 +468,25 @@ controller_templates:
 
   # --- Storage Services ---
   - name: "Diagnose Storage"
-    description: "Check storage backend health and connectivity for CMDB-identified data stores"
+    description: "Check storage capacity and disk health for CMDB-identified hosts"
     organization: "Storage Services"
     job_type: "run"
     project: "Storage Automation"
     playbook: "playbooks/storage_services/diagnose_storage.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
+
+  # --- Database Services ---
+  - name: "Diagnose Database"
+    description: "Check database connectivity and query health for CMDB-identified instances"
+    organization: "Database Services"
+    job_type: "run"
+    project: "Database Automation"
+    playbook: "playbooks/database_services/diagnose_database.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
     credentials:
-      - "Storage SSH"
+      - "Database SSH"
 
   - name: "Expand Volume"
     description: "Resize an EBS volume and grow the filesystem to fill the new capacity"
@@ -571,6 +581,7 @@ controller_workflows:
           - "Diagnose Application"
           - "Diagnose Message Queue"
           - "Diagnose Storage"
+          - "Diagnose Database"
 
       - identifier: "Diagnose Application"
         unified_job_template: "Diagnose Application"
@@ -587,6 +598,12 @@ controller_workflows:
       - identifier: "Diagnose Storage"
         unified_job_template: "Diagnose Storage"
         organization: "Storage Services"
+        success_nodes:
+          - "AI Router"
+
+      - identifier: "Diagnose Database"
+        unified_job_template: "Diagnose Database"
+        organization: "Database Services"
         success_nodes:
           - "AI Router"
 
