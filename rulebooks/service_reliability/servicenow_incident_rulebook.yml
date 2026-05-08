@@ -1,57 +1,30 @@
 ---
-# servicenow_incident_rulebook.yml — Event-Driven Ansible rulebook
-#
-# Watches for ServiceNow incidents matching the demo criteria and triggers
-# the diagnostic orchestrator playbook.
-#
-# Designed to work two ways:
-#   1. Via ansible-rulebook directly (for testing and rehearsal)
-#   2. Via AAP EDA Controller (for the live demo with AAP)
-#
-# When running via AAP EDA, the "run_job_template" action fires a job template
-# in AAP Controller.  When testing locally, the "run_playbook" action runs
-# the playbook directly.
-#
-# The source plugin used here is a webhook receiver.  In the live demo, a
-# ServiceNow Business Rule or Flow Designer action POSTs incident data to
-# this webhook when an incident is created or updated.
-
-- name: ServiceNow incident — AIOps diagnostic trigger
+- name: Monitor ServiceNow incidents
   hosts: all
-
+  execution_strategy: parallel
   sources:
-    # Webhook source: listens for POST requests from ServiceNow.
-    # In production EDA, you'd use the certified ServiceNow event source;
-    # the webhook is simpler for demo/testing and works identically.
-    - ansible.eda.webhook:
-        host: 0.0.0.0
-        port: 5000
-
+    - servicenow.itsm.records:
+        table: incident
+        interval: 10
+        remote_servicenow_timezone: "Europe/London"
+        sysparm_query: >
+          ORDERBYDESCsys_updated_on^ORDERBYDESCsys_id
+      filters:
+        - ansible.eda.json_filter:
+        - ansible.eda.normalize_keys:
   rules:
-    - name: Trigger diagnostics for high-priority incidents on onboarded services
-      condition: >-
-        event.payload.priority is defined and
-        event.payload.priority in ["1", "2", "P1", "P2"] and
-        event.payload.business_service is defined and
-        event.payload.business_service in [
-          "Passport online application service"
-        ]
+    - name: Run diagnostics and enrich incident
+      throttle:
+        once_within: 10 minutes
+        group_by_attributes:
+          - sys_id
+      condition: event.short_description is defined
       action:
-        # For direct ansible-rulebook testing, this runs the playbook locally.
-        # When this rulebook is loaded into AAP EDA Controller, replace this
-        # with run_job_template and point it at the orchestrator job template.
-        run_playbook:
-          name: playbooks/service_reliability/cmdb_lookup.yml
-          extra_vars:
-            incident_id: "{{ event.payload.sys_id }}"
-
-    - name: Log unmatched incidents for visibility
-      condition: >-
-        event.payload.priority is defined and
-        event.payload.priority not in ["1", "2", "P1", "P2"]
-      action:
-        debug:
-          msg: >-
-            Incident {{ event.payload.number | default('unknown') }} received
-            but priority {{ event.payload.priority }} is below P2 threshold.
-            No action taken.
+        run_workflow_template:
+          name: Incident Diagnostics Workflow
+          organization: Service Reliability
+          post_events: true
+          job_args:
+            extra_vars:
+              incident_description: "{{ event.short_description + ' ' + event.description }}"
+              incident_sys_id: "{{ event.sys_id }}"
