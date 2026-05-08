@@ -6,13 +6,23 @@
   vars:
     db_host: "{{ database_params.host | default('') }}"
     db_name: "{{ database_params.db_name | default('') }}"
-    domain: "{{ database_params.domain | default('sandbox2797.opentlc.com') }}"
+    db_port: "{{ database_params.port | default('5432') }}"
+    domain: "{{ database_params.domain | default('') }}"
 
   tasks:
 
-    - name: Skip if no database parameters provided
+    - name: Skip if no database parameters provided by CMDB
       ansible.builtin.meta: end_play
       when: db_host == ''
+
+    - name: Check database port is accepting connections
+      ansible.builtin.uri:
+        url: "http://{{ db_host }}.{{ domain }}:{{ db_port }}/"
+        method: GET
+        return_content: true
+        timeout: 5
+      register: db_port_check
+      ignore_errors: true
 
     - name: Check database connectivity via dependent application
       ansible.builtin.uri:
@@ -20,21 +30,25 @@
         method: GET
         return_content: true
         timeout: 10
-      register: db_connectivity
+      register: app_db_check
       ignore_errors: true
 
     - name: Build diagnostic report
       ansible.builtin.set_fact:
         db_report: |
           DATABASE DIAGNOSTICS
-          Database host: {{ db_host }}
+          Host: {{ db_host }}.{{ domain }}
           Database name: {{ db_name }}
+          Port: {{ db_port }}
 
-          Connectivity (via app-svc which reads/writes to this database):
-            HTTP status: {{ db_connectivity.status | default('unreachable') }}
-            Response: {{ db_connectivity.json | default('no response') }}
+          Direct port check ({{ db_host }}.{{ domain }}:{{ db_port }}):
+            Result: {{ 'Responding' if db_port_check is succeeded else 'Not responding on HTTP (expected for raw PostgreSQL — not necessarily an issue)' }}
 
-          ANALYSIS: {{ 'Database is accepting connections. No connection pool exhaustion or timeout issues detected.' if db_connectivity is succeeded else 'WARNING: Database may be unreachable — dependent service health check failed.' }}
+          Application connectivity (app-svc -> {{ db_host }}):
+            HTTP status: {{ app_db_check.status | default('unreachable') }}
+            Response: {{ app_db_check.json | default('no response') }}
+
+          ANALYSIS: {{ 'Database is accessible to dependent applications. No connection pool exhaustion or timeout issues detected.' if app_db_check is succeeded else 'WARNING: Application cannot reach database — possible connectivity, authentication, or resource exhaustion issue.' }}
 
     - name: Display report
       ansible.builtin.debug:
