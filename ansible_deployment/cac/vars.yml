@@ -22,7 +22,7 @@ aap_organizations:
   - name: "Middleware Services"
     description: "Kafka and messaging infrastructure operations"
   - name: "Storage Services"
-    description: "Volume and disk management"
+    description: "Storage infrastructure and persistent data store operations"
   - name: "Database Services"
     description: "PostgreSQL database administration"
 
@@ -399,13 +399,13 @@ controller_templates:
     credentials:
       - "Application SSH"
 
-  - name: "Check Application Health"
-    description: "Verify service status, health endpoints, and recent error rates"
+  - name: "Diagnose Application"
+    description: "Check health endpoints for CMDB-identified application components"
     organization: "Application Services"
     job_type: "run"
-    project: "Application Automation"
-    playbook: "playbooks/application_services/check_application_health.yml"
-    inventory: "Application Hosts"
+    project: "Incident Response Automation"
+    playbook: "playbooks/application_services/diagnose_application.yml"
+    inventory: "All Services"
     ask_variables_on_launch: true
     credentials:
       - "Application SSH"
@@ -433,13 +433,13 @@ controller_templates:
     credentials:
       - "Middleware SSH"
 
-  - name: "Check Consumer Lag"
-    description: "Report consumer group lag across all topics and alert on thresholds"
+  - name: "Diagnose Message Queue"
+    description: "Check topic health and DLQ status for CMDB-identified message brokers"
     organization: "Middleware Services"
     job_type: "run"
-    project: "Middleware Automation"
-    playbook: "playbooks/middleware_services/check_consumer_lag.yml"
-    inventory: "Middleware Hosts"
+    project: "Incident Response Automation"
+    playbook: "playbooks/middleware_services/diagnose_message_queue.yml"
+    inventory: "All Services"
     ask_variables_on_launch: true
     credentials:
       - "Middleware SSH"
@@ -467,13 +467,13 @@ controller_templates:
       - "Middleware SSH"
 
   # --- Storage Services ---
-  - name: "Check Volume Health"
-    description: "Check filesystem usage, inode capacity, read-only mounts, and I/O errors across hosts"
+  - name: "Diagnose Storage"
+    description: "Check storage backend health and connectivity for CMDB-identified data stores"
     organization: "Storage Services"
     job_type: "run"
-    project: "Storage Automation"
-    playbook: "playbooks/storage_services/check_volume_health.yml"
-    inventory: "Storage Hosts"
+    project: "Incident Response Automation"
+    playbook: "playbooks/storage_services/diagnose_storage.yml"
+    inventory: "All Services"
     ask_variables_on_launch: true
     credentials:
       - "Storage SSH"
@@ -568,24 +568,24 @@ controller_workflows:
       - identifier: "CMDB Lookup"
         unified_job_template: "CMDB Lookup"
         success_nodes:
-          - "Check Application Health"
-          - "Check Consumer Lag"
-          - "Check Volume Health"
+          - "Diagnose Application"
+          - "Diagnose Message Queue"
+          - "Diagnose Storage"
 
-      - identifier: "Check Application Health"
-        unified_job_template: "Check Application Health"
+      - identifier: "Diagnose Application"
+        unified_job_template: "Diagnose Application"
         organization: "Application Services"
         success_nodes:
           - "AI Router"
 
-      - identifier: "Check Consumer Lag"
-        unified_job_template: "Check Consumer Lag"
+      - identifier: "Diagnose Message Queue"
+        unified_job_template: "Diagnose Message Queue"
         organization: "Middleware Services"
         success_nodes:
           - "AI Router"
 
-      - identifier: "Check Volume Health"
-        unified_job_template: "Check Volume Health"
+      - identifier: "Diagnose Storage"
+        unified_job_template: "Diagnose Storage"
         organization: "Storage Services"
         success_nodes:
           - "AI Router"

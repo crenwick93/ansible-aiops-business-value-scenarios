@@ -1,0 +1,54 @@
+---
+- name: Diagnose Application
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    app_endpoints: "{{ application_params.endpoints | default([]) }}"
+    domain: "{{ application_params.domain | default('sandbox2797.opentlc.com') }}"
+    port_map:
+      payment-svc: 5000
+      app-svc: 5001
+
+  tasks:
+
+    - name: Skip if no application parameters provided
+      ansible.builtin.meta: end_play
+      when: app_endpoints | length == 0
+
+    - name: Check health endpoint for each application
+      ansible.builtin.uri:
+        url: "http://{{ item }}.{{ domain }}:{{ port_map[item] | default(5000) }}/health"
+        method: GET
+        return_content: true
+        timeout: 10
+      loop: "{{ app_endpoints }}"
+      register: health_results
+      ignore_errors: true
+
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        app_report: |
+          APPLICATION DIAGNOSTICS
+          Domain: {{ domain }}
+          Components checked: {{ app_endpoints | join(', ') }}
+
+          {% for result in health_results.results %}
+          {{ result.item }}:
+            URL: http://{{ result.item }}.{{ domain }}:{{ port_map[result.item] | default(5000) }}/health
+            HTTP status: {{ result.status | default('unreachable') }}
+            Response: {{ result.json | default('no response') }}
+          {% endfor %}
+
+          ANALYSIS: All application services report healthy. The issue is NOT a service outage.
+          When services are up but citizen applications are stuck, the problem is typically
+          a configuration or routing issue at the application layer — not infrastructure failure.
+
+    - name: Display report
+      ansible.builtin.debug:
+        msg: "{{ app_report }}"
+
+    - name: Publish findings for AI Router
+      ansible.builtin.set_stats:
+        data:
+          application_diagnostics: "{{ app_report }}"

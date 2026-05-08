@@ -1,188 +1,119 @@
-# Demo Runbook
+# AIOps Business Value Demo — Presenter Guide
 
-Step-by-step guide for presenters.  Follow this sequence for a smooth demo.
+## The Point
 
-## Pre-flight checklist (morning of the demo)
+This demo shows how Ansible Automation Platform (AAP) with Event-Driven Ansible (EDA) and Ansible Lightspeed Intelligent Assist (ALIA) can **dramatically reduce Mean Time To Resolution (MTTR)** for complex, cross-team incidents.
 
-- [ ] `.env` is populated with valid credentials
-- [ ] `make check` passes
-- [ ] AWS credentials are active and have EC2/VPC permissions
-- [ ] ServiceNow PDI is awake (PDIs sleep after inactivity — log in to wake it)
-- [ ] You can SSH to a test EC2 instance (verify key pair works)
-- [ ] AAP is configured with the required job templates (if using AAP)
-- [ ] Your laptop can reach the ServiceNow instance and AWS region
-
-## Infrastructure setup (~5 minutes)
-
-```bash
-make up
-```
-
-This provisions 4 EC2 instances (Kafka, PostgreSQL, payment-svc, app-svc) and
-waits for health checks.  While it runs, explain the architecture to the
-audience using the diagram in ARCHITECTURE.md.
-
-**Expected output:** Terraform apply completes, health checks pass for both
-services.
-
-## CMDB setup (~1 minute)
-
-```bash
-make seed-cmdb
-```
-
-Creates the business service and 4 component CIs in ServiceNow with typed
-relationships.  Show the audience the CMDB map in ServiceNow after this
-completes.
-
-**Expected output:** 5 CIs created, 7 relationships created, sys_ids printed.
-
-## Start traffic (~30 seconds)
-
-```bash
-make seed-traffic
-```
-
-Starts the traffic generator in the background.  It sends ~1 payment request
-per second with a realistic mix of fee types.  Show `tail -f traffic.log` to
-the audience briefly.
-
-**Expected output:** Traffic flowing, applications being processed normally.
+The scenario is deliberately subtle — a partial failure that doesn't trigger traditional monitoring. Services are up, health checks pass, but citizens are stuck. In the real world, this kind of issue bounces between teams for days. Here, it's diagnosed in under 60 seconds.
 
 ---
 
-## Act 1: Everything is fine (1 minute)
+## The Scenario
 
-Open two browser tabs:
-- **Citizen portal:** `http://<dashboard-ip>:8080/` — try looking up `CZ-00042`
-- **Engineering dashboard:** `http://<dashboard-ip>:8080/engineering`
+**UK Passport Online Application Service** — citizens submit passport applications and pay fees. Standard adult applications are stuck at "Payment Received" and never progress. Premium and child applications work fine.
 
-**Presenter talking points:**
-- "This is a passport application service processing citizen payments"
-- Switch to the **engineering dashboard**: "From the platform team's perspective,
-  everything is green. Services are healthy, traffic is flowing, no alerts"
-- Switch to the **citizen portal**: "Citizens can check their application status.
-  Let's look one up — it's progressing normally"
+**Root cause:** A routing misconfiguration in the payment service sends `fee.standard.adult` payments to a dead letter queue instead of the main processing topic. Services are healthy. No alerts fire. Citizens just wait.
 
-```bash
-# Dashboard IP from Terraform outputs:
-terraform -chdir=infra/terraform output dashboard_urls
-```
+**Why this is hard without automation:**
+- No single team owns the full picture
+- Health checks all pass (it's not an outage)
+- The symptom (stuck applications) is in a different system than the cause (routing config)
+- Traditional debugging means ticket ping-pong between app team, middleware team, and storage team
 
 ---
 
-## Act 2: Introduce the failure (1 minute)
+## The Flow
 
-```bash
-make demo-break
-```
+### 1. Incident Created (ServiceNow)
+A call centre agent raises an incident: "Passport applications stuck at payment stage."
 
-**Presenter talking points:**
-- "A config change was deployed — maybe a well-meaning PR, maybe a typo"
-- "Standard adult passport fee payments are now silently going to the DLQ"
-- "Health checks are still green. Monitoring sees nothing. The service is 'healthy'"
-- Let traffic flow for 60 seconds to build up DLQ messages
+**Business value:** This is the trigger. In the old world, this ticket sits in a queue for hours before anyone looks at it.
 
-**Expected output:** Config modified, service restarted, still returns 200 on
-/health.
+### 2. Event-Driven Ansible Detects It
+The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds of the incident being created, EDA triggers the workflow automatically.
 
----
+**Business value:** Zero human latency. No waiting for someone to pick up the ticket, read it, decide who to assign it to.
 
-## Act 3: The human signal (2 minutes)
+### 3. CMDB Lookup (Service Reliability Team)
+The workflow's first step queries the ServiceNow CMDB to resolve the service graph:
+- "Passport online application service" depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`
 
-**Presenter talking points:**
-- "Days pass.  Citizens who paid for standard adult passports call the contact centre"
-- Switch to the **citizen portal**: look up an application with `fee.standard.adult`.
-  It's stuck on "Payment Received - Awaiting Processing" with a warning message
-- Switch to the **engineering dashboard**: "But look — everything is still green.
-  The platform team has no idea this is happening"
-- "A call-centre agent notices the pattern and raises a ServiceNow incident"
-- "This is the signal that monitoring couldn't provide"
+It then derives **operational parameters** from the CMDB — topic names, service URLs, storage hosts — and passes them to the diagnostic steps.
 
-```bash
-make demo-incident
-```
+**Business value:** The CMDB tells us WHERE to look. In an enterprise with hundreds of services and thousands of components, you can't run diagnostics on everything. The service graph scopes the investigation to only the relevant components.
 
-Show the incident in ServiceNow.  Point out that the business service field
-links to the CMDB graph.
+**Why this matters for the narrative:** Without this step, you'd need a human to manually figure out which systems are involved. That's tribal knowledge that lives in people's heads, is lost when they leave, and takes time to recall at 3am.
 
-**Expected output:** Incident created, number printed (e.g. INC0010042).
+### 4. Parallel Diagnostics (Three Teams, Simultaneously)
 
----
+The workflow fans out to three different organisational teams — all running in parallel:
 
-## Act 4: Automated diagnostics (2 minutes)
+| Node | Team | What it does |
+|------|------|-------------|
+| Diagnose Application | Application Services | Checks health endpoints for payment-svc and app-svc |
+| Diagnose Message Queue | Middleware Services | Queries Kafka via Kafdrop — topic stats, DLQ message counts |
+| Diagnose Storage | Storage Services | Checks disk/storage capacity on affected hosts |
 
-```bash
-make demo-diagnose
-```
+Each diagnostic playbook is **generic and reusable**. It doesn't know about passports or payments — it receives parameters from the CMDB Lookup (topic names, URLs, hostnames) and runs its standard checks against those targets.
 
-**Presenter talking points:**
-- "EDA picks up the incident and triggers the diagnostic orchestrator"
-  (in the live demo via `ansible-rulebook`; here we run it directly)
-- "The orchestrator walks the CMDB graph — it finds 4 components"
-- "For each component, it runs the matching diagnostic role"
-- "The Kafka role spots 300+ messages in the DLQ, all with the same routing key"
-- "The application role reads config.py and sees the misrouting"
-- "The database role sees growing stuck applications"
-- "All evidence is bundled and sent to ALIA"
+**Business value:** Three teams' expertise encoded as automation, running simultaneously. In the manual world, you'd raise a ticket to each team, wait for them to investigate one at a time, and hope they report back. Here it takes 5 seconds total.
 
-**Expected output:** Diagnostic payloads collected, ALIA response displayed,
-work note posted to the ServiceNow incident.
+**The cross-silo story:** Each team owns and maintains their own diagnostic playbooks. The Service Reliability team orchestrates them via the workflow. Nobody had to build a monolithic "check everything" script — each team contributed their domain expertise independently.
 
-Show the work note in ServiceNow — the audience sees the AI's analysis and
-recommendation.
+### 5. AI Router (Service Reliability Team)
+All diagnostic results converge here. ALIA receives:
+- The incident description
+- The Kafka diagnostics (showing ~47% of payments are in the DLQ)
+- The application diagnostics (everything healthy)
+- The storage diagnostics (capacity fine)
+
+ALIA produces a structured root cause analysis with step-by-step remediation.
+
+**Business value:** The AI correlates data from three different domains simultaneously — something that would take a human engineer significant time to piece together. It identifies that the DLQ accumulation + healthy services = routing misconfiguration, not an outage.
+
+### 6. Update SNOW Incident (Service Reliability Team)
+The AI analysis is posted directly to the incident's work notes and the state is advanced to "In Progress".
+
+**Business value:** The incident now contains actionable remediation steps before any human has even looked at it. An engineer picking up this ticket has a clear path to resolution instead of starting from scratch.
 
 ---
 
-## Act 5: Approved remediation (1 minute)
+## Key Messages
 
-**Presenter talking points:**
-- "ALIA recommends: run 'replay_held_messages' with these parameters"
-- "An engineer reviews the recommendation — this is suggestion, not automation"
-- "The engineer approves, and the remediation runs"
-- "Note: the playbook is GENERIC.  It replays messages from any queue.
-  ALIA's contribution is the parameters, not the playbook itself"
+### Time
+- **Before:** Incident raised → assigned → reassigned → investigated → root cause found → fixed. Typically 4-48 hours for a subtle issue like this.
+- **After:** Incident raised → diagnosed → remediation steps provided. Under 60 seconds.
 
-```bash
-make demo-fix
-```
+### Tribal Knowledge
+- Diagnostic expertise is codified in reusable playbooks, not locked in people's heads
+- The CMDB service graph replaces "ask Dave, he knows how this connects"
+- New team members benefit from day one
 
-**Expected output:** Messages replayed from DLQ to main topic, applications
-start processing again.
+### Team Collaboration Without Ticket Ping-Pong
+- Three teams' diagnostics run in parallel without any human coordination
+- No "I've checked my bit, it's not us, reassigning to middleware"
+- The workflow crosses organisational silos automatically
 
----
-
-## Act 6: Resolution (1 minute)
-
-**Presenter talking points:**
-- "The held messages are replayed, citizens' applications start progressing"
-- "The root cause (config.py misrouting) should also be fixed — that's a
-  separate change management process"
-- "The entire diagnostic-to-remediation loop took minutes, not days"
+### Precision Over Brute Force
+- The CMDB scopes the investigation to only affected components
+- Diagnostic playbooks skip cleanly when their component isn't in the service graph
+- At scale (hundreds of services), this prevents wasted compute and noisy false results
 
 ---
 
-## Cleanup
+## Talking Points for Q&A
 
-```bash
-make reset     # restore config, clear DLQ (if demoing again)
-make nuke      # full teardown when done for the day
-```
+**"Could the AI just figure this out without the diagnostics?"**
+No. Without real data, the AI guesses. With the DLQ message counts and healthy service endpoints as evidence, it can pinpoint routing as the cause. Garbage in, garbage out — the diagnostics give it facts.
 
-## Timing summary
+**"Why not just have better monitoring/alerting?"**
+This failure doesn't trigger alerts. Services are up. No error rates spike. The only symptom is that applications stop progressing — which looks identical to "nobody submitted an application" from a metrics standpoint. This is the class of problem that monitoring misses.
 
-| Step              | Duration    | Cumulative |
-|-------------------|-------------|------------|
-| Infrastructure    | ~5 min      | 5 min      |
-| CMDB setup        | ~1 min      | 6 min      |
-| Start traffic     | ~30 sec     | 6.5 min    |
-| Act 1: Happy path | ~1 min      | 7.5 min    |
-| Act 2: Break      | ~1 min      | 8.5 min    |
-| Accumulate DLQ    | ~1 min wait | 9.5 min    |
-| Act 3: Incident   | ~2 min      | 11.5 min   |
-| Act 4: Diagnose   | ~2 min      | 13.5 min   |
-| Act 5: Fix        | ~1 min      | 14.5 min   |
-| Act 6: Wrap-up    | ~1 min      | 15.5 min   |
-| **Total**         |             | **~16 min**|
+**"What if the CMDB is wrong or incomplete?"**
+Valid concern. The diagnostic playbooks skip gracefully when parameters are missing. An incomplete CMDB means fewer diagnostics run, not a failure. This actually incentivises teams to maintain their CMDB — because accurate data leads to faster resolution.
 
-Allow 20 minutes with Q&A buffer.
+**"Do teams need to change how they work?"**
+No. Each team writes their diagnostic playbooks in their own org, using their own project. The Service Reliability team wires them into the workflow. Teams don't need to know about EDA or ALIA — they just maintain good operational playbooks.
+
+**"What about remediation — does it auto-fix?"**
+Not in this demo. The AI recommends steps; a human approves. But the architecture supports it — you could add a remediation node after the AI Router that launches a fix playbook with approval gates. The point is: you've gone from "we don't know what's wrong" to "here's exactly what to do" in under a minute.

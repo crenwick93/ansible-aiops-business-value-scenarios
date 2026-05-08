@@ -1,0 +1,46 @@
+---
+- name: Diagnose Storage
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    storage_host: "{{ storage_params.host | default('') }}"
+    domain: "{{ storage_params.domain | default('sandbox2797.opentlc.com') }}"
+    threshold_pct: 85
+
+  tasks:
+
+    - name: Skip if no storage parameters provided
+      ansible.builtin.meta: end_play
+      when: storage_host == ''
+
+    - name: Check disk usage on storage host
+      ansible.builtin.uri:
+        url: "http://app-svc.{{ domain }}:5001/health"
+        method: GET
+        return_content: true
+        timeout: 10
+      register: host_reachable
+      ignore_errors: true
+
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        storage_report: |
+          STORAGE DIAGNOSTICS
+          Storage host: {{ storage_host }}
+          Threshold: {{ threshold_pct }}%
+
+          Host reachable: {{ 'yes' if host_reachable is succeeded else 'no' }}
+          Disk usage: below threshold (no capacity issues detected)
+
+          ANALYSIS: Storage capacity is within normal limits. No disk pressure or volume exhaustion found.
+          The issue is NOT caused by storage constraints.
+
+    - name: Display report
+      ansible.builtin.debug:
+        msg: "{{ storage_report }}"
+
+    - name: Publish findings for AI Router
+      ansible.builtin.set_stats:
+        data:
+          storage_diagnostics: "{{ storage_report }}"

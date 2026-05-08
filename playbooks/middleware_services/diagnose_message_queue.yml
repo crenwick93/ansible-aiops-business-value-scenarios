@@ -1,0 +1,74 @@
+---
+- name: Diagnose Message Queue
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    kafdrop_url: "{{ message_queue_params.kafdrop_url | default('') }}"
+    topic_name: "{{ message_queue_params.topic_name | default('') }}"
+    dlq_topic_name: "{{ message_queue_params.dlq_topic_name | default('') }}"
+    broker_name: "{{ message_queue_params.broker_name | default('unknown') }}"
+
+  tasks:
+
+    - name: Skip if no message queue parameters provided
+      ansible.builtin.meta: end_play
+      when: kafdrop_url == '' or topic_name == ''
+
+    - name: Get primary topic stats
+      ansible.builtin.uri:
+        url: "{{ kafdrop_url }}/topic/{{ topic_name }}"
+        method: GET
+        headers:
+          Accept: "application/json"
+        return_content: true
+        timeout: 10
+      register: primary_topic
+      ignore_errors: true
+
+    - name: Get dead letter queue stats
+      ansible.builtin.uri:
+        url: "{{ kafdrop_url }}/topic/{{ dlq_topic_name }}"
+        method: GET
+        headers:
+          Accept: "application/json"
+        return_content: true
+        timeout: 10
+      register: dlq_topic
+      ignore_errors: true
+      when: dlq_topic_name != ''
+
+    - name: Calculate message counts
+      ansible.builtin.set_fact:
+        primary_count: "{{ primary_topic.json.partitions[0].size | default(0) }}"
+        dlq_count: "{{ dlq_topic.json.partitions[0].size | default(0) }}"
+      when: primary_topic is succeeded
+
+    - name: Build diagnostic report
+      ansible.builtin.set_fact:
+        kafka_report: |
+          MESSAGE QUEUE DIAGNOSTICS
+          Broker: {{ broker_name }}
+          Monitoring endpoint: {{ kafdrop_url }}
+
+          Topic '{{ topic_name }}' (primary):
+            Total messages: {{ primary_count | default('unreachable') }}
+            Status: {{ 'healthy' if primary_topic is succeeded else 'unreachable' }}
+
+          Topic '{{ dlq_topic_name }}' (dead letter queue):
+            Total messages: {{ dlq_count | default('unreachable') }}
+            Status: {{ 'healthy' if dlq_topic is succeeded else 'unreachable' }}
+            WARNING: No consumer processes messages from the DLQ — messages here are STUCK and unprocessed.
+
+          ANALYSIS: The DLQ contains {{ dlq_count | default('?') }} messages out of {{ ((primary_count | default(0) | int) + (dlq_count | default(0) | int)) }} total ({{ ((dlq_count | default(0) | int) * 100 / (((primary_count | default(1) | int) + (dlq_count | default(0) | int)) | default(1))) | round(1) }}%).
+          A healthy system should have near-zero DLQ messages.
+          This volume indicates the payment-svc is actively ROUTING messages to the DLQ rather than messages failing during processing.
+
+    - name: Display report
+      ansible.builtin.debug:
+        msg: "{{ kafka_report }}"
+
+    - name: Publish findings for AI Router
+      ansible.builtin.set_stats:
+        data:
+          kafka_diagnostics: "{{ kafka_report }}"

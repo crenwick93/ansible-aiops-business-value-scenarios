@@ -1,7 +1,10 @@
 ---
-- name: CMDB Lookup - Resolve service components from incident
+- name: CMDB Lookup - Resolve service components and diagnostic parameters
   hosts: localhost
   gather_facts: false
+
+  vars:
+    demo_domain: "{{ lookup('env', 'DEMO_DOMAIN') | default('sandbox2797.opentlc.com', true) }}"
 
   tasks:
 
@@ -36,15 +39,8 @@
       loop: "{{ child_ci_ids }}"
       register: ci_results
 
-    - name: Build component summary
+    - name: Build component list
       ansible.builtin.set_fact:
-        service_components: >-
-          {{ ci_results.results
-             | map(attribute='records')
-             | map('first')
-             | selectattr('name', 'defined')
-             | map(attribute='name')
-             | list }}
         component_details: >-
           {{ ci_results.results
              | map(attribute='records')
@@ -52,19 +48,44 @@
              | selectattr('name', 'defined')
              | list }}
 
+    - name: Derive diagnostic parameters from CMDB component classes
+      ansible.builtin.set_fact:
+        message_queue_params:
+          kafdrop_url: "http://dashboard.{{ demo_domain }}:9000"
+          topic_name: "payments"
+          dlq_topic_name: "payments.dlq"
+          broker_name: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_messaging_server') | map(attribute='name') | first | default('unknown') }}"
+        application_params:
+          endpoints: >-
+            {{ component_details
+               | selectattr('sys_class_name', 'equalto', 'cmdb_ci_appl')
+               | list
+               | map(attribute='name')
+               | list }}
+          domain: "{{ demo_domain }}"
+        storage_params:
+          host: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | map(attribute='name') | first | default('') }}"
+          domain: "{{ demo_domain }}"
+
     - name: Display resolved service graph
       ansible.builtin.debug:
         msg: |
-          Service components resolved from CMDB:
+          Service graph resolved from CMDB:
           {% for ci in component_details %}
             - {{ ci.name }} ({{ ci.sys_class_name }})
           {% endfor %}
 
-    - name: Publish service component data for downstream workflow steps
+          Diagnostic parameters derived:
+            Message Queue: broker={{ message_queue_params.broker_name }}, topic={{ message_queue_params.topic_name }}, dlq={{ message_queue_params.dlq_topic_name }}
+            Applications: {{ application_params.endpoints }}
+            Storage: {{ storage_params.host }}
+
+    - name: Publish parameters for downstream diagnostic nodes
       ansible.builtin.set_stats:
         data:
           incident_sys_id: "{{ incident_sys_id }}"
           incident_description: "{{ incident_description | default(incident_short_desc) }}"
-          business_service_id: "{{ business_service_id }}"
-          service_components: "{{ service_components }}"
-          component_details: "{{ component_details }}"
+          service_components: "{{ component_details | map(attribute='name') | list }}"
+          message_queue_params: "{{ message_queue_params }}"
+          application_params: "{{ application_params }}"
+          storage_params: "{{ storage_params }}"
