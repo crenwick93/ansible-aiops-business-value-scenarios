@@ -8,9 +8,11 @@
     - name: Query incident details
       servicenow.itsm.api_info:
         resource: incident
-        sysparm_query: "sys_id={{ incident_sys_id }}"
-        sysparm_fields: "sys_id,short_description,business_service"
-        sysparm_limit: 1
+        sys_id: "{{ incident_sys_id }}"
+        columns:
+          - sys_id
+          - short_description
+          - business_service
       register: incident_result
 
     - name: Extract business service from incident
@@ -27,6 +29,10 @@
       servicenow.itsm.api_info:
         resource: cmdb_rel_ci
         sysparm_query: "parent={{ business_service_id }}"
+        columns:
+          - child
+          - parent
+          - type
       register: rel_result
 
     - name: Collect child CI sys_ids
