@@ -18,9 +18,9 @@
     aap_configuration_collect_logs: true
 
     # ServiceNow env inputs (required)
-    sn_instance: "{{ lookup('env', 'SN_INSTANCE') | default(omit, true) }}"
-    sn_username: "{{ lookup('env', 'SN_USERNAME') | default(omit, true) }}"
-    sn_password: "{{ lookup('env', 'SN_PASSWORD') | default(omit, true) }}"
+    sn_instance: "{{ lookup('env', 'SERVICENOW_INSTANCE_URL') | default(omit, true) }}"
+    sn_username: "{{ lookup('env', 'SERVICENOW_USERNAME') | default(omit, true) }}"
+    sn_password: "{{ lookup('env', 'SERVICENOW_PASSWORD') | default(omit, true) }}"
 
     # ALIA token (required)
     alia_token: "{{ lookup('env', 'ALIA_TOKEN') | default(omit, true) }}"

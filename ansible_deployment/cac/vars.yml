@@ -15,8 +15,6 @@
 # Organizations
 # -----------------------------------------------------------------------------
 aap_organizations:
-  - name: "Default"
-    state: absent
   - name: "Service Reliability"
     description: "Cross-cutting AIOps orchestration, EDA, and incident response"
   - name: "Application Services"
@@ -103,7 +101,7 @@ eda_credential_types:
 # Projects (one per org, all pointing to the same git repo)
 # -----------------------------------------------------------------------------
 controller_projects:
-  - name: "AIOps Business Value Scenarios"
+  - name: "Incident Response Automation"
     description: "Cross-org diagnostics, remediation, and ALIA enrichment playbooks"
     organization: "Service Reliability"
     scm_type: "git"
@@ -324,7 +322,7 @@ controller_templates:
     description: "Query ServiceNow CMDB to resolve the affected host IP and hostname from the incident CI"
     organization: "Service Reliability"
     job_type: "run"
-    project: "AIOps Business Value Scenarios"
+    project: "Incident Response Automation"
     playbook: "playbooks/service_reliability/cmdb_lookup.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
@@ -335,7 +333,7 @@ controller_templates:
     description: "Send diagnostics to ALIA for root cause analysis, job template recommendation via MCP, and ServiceNow update"
     organization: "Service Reliability"
     job_type: "run"
-    project: "AIOps Business Value Scenarios"
+    project: "Incident Response Automation"
     playbook: "playbooks/service_reliability/alia_enrichment.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
@@ -347,7 +345,7 @@ controller_templates:
     description: "Replay messages from Kafka DLQ back to the correct topic after routing fix"
     organization: "Service Reliability"
     job_type: "run"
-    project: "AIOps Business Value Scenarios"
+    project: "Incident Response Automation"
     playbook: "playbooks/service_reliability/replay_held_messages.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
@@ -358,7 +356,7 @@ controller_templates:
     description: "Reconcile a drifted service config with its declared state in source control — pulls known-good, restores, restarts, verifies"
     organization: "Service Reliability"
     job_type: "run"
-    project: "AIOps Business Value Scenarios"
+    project: "Incident Response Automation"
     playbook: "playbooks/service_reliability/rollback_service_config.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
@@ -587,7 +585,7 @@ controller_workflows:
 # EDA — Service Reliability
 # -----------------------------------------------------------------------------
 eda_projects:
-  - name: "AIOps Business Value Scenarios"
+  - name: "Incident Response Automation"
     description: "Rulebooks for ServiceNow incident monitoring and automated response"
     organization: "Service Reliability"
     scm_type: "git"
@@ -625,7 +623,7 @@ eda_rulebook_activations:
   - name: "ServiceNow Incident Monitor"
     description: "Watches for new/escalated ServiceNow incidents and triggers diagnostics workflow"
     organization: "Service Reliability"
-    project: "AIOps Business Value Scenarios"
+    project: "Incident Response Automation"
     rulebook: "rulebooks/service_reliability/servicenow_incident_rulebook.yml"
     decision_environment: "snow-de"
     eda_credentials:
