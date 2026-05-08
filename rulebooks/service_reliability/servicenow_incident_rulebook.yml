@@ -8,7 +8,7 @@
         interval: 10
         remote_servicenow_timezone: "Europe/London"
         sysparm_query: >
-          ORDERBYDESCsys_updated_on^ORDERBYDESCsys_id
+          state=1^ORDERBYDESCsys_created_on
       filters:
         - ansible.eda.json_filter:
         - ansible.eda.normalize_keys:
