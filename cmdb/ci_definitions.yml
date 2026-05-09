@@ -53,7 +53,7 @@ components:
       version: "16"
       short_description: "passports"
 
-  - name: passport-document-uploads
+  - name: s3-object-storage
     ci_class: cmdb_ci_cloud_object_storage
     description: "[aiops-demo] AWS S3 bucket — citizen passport photos and supporting documents"
     attributes:
@@ -94,9 +94,9 @@ relationships:
     type: "Uses::Used by"
 
   - parent: business_service
-    child: passport-document-uploads
+    child: s3-object-storage
     type: "Contains::Used by"
 
   - parent: app-svc
-    child: passport-document-uploads
+    child: s3-object-storage
     type: "Uses::Used by"
