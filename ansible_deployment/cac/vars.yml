@@ -27,6 +27,70 @@ aap_organizations:
     description: "PostgreSQL database administration"
 
 # -----------------------------------------------------------------------------
+# Organization Admin Users
+# -----------------------------------------------------------------------------
+# One admin per org so you can log in and browse each team's automation catalog.
+# Password is shared (set via AAP_ORG_ADMIN_PASSWORD in .env).
+controller_user_accounts:
+  - username: "sre_admin"
+    password: "{{ org_admin_password }}"
+    first_name: "SRE"
+    last_name: "Admin"
+    email: "sre_admin@example.com"
+    is_superuser: false
+    organization: "Service Reliability"
+
+  - username: "app_admin"
+    password: "{{ org_admin_password }}"
+    first_name: "App"
+    last_name: "Admin"
+    email: "app_admin@example.com"
+    is_superuser: false
+    organization: "Application Services"
+
+  - username: "middleware_admin"
+    password: "{{ org_admin_password }}"
+    first_name: "Middleware"
+    last_name: "Admin"
+    email: "middleware_admin@example.com"
+    is_superuser: false
+    organization: "Middleware Services"
+
+  - username: "storage_admin"
+    password: "{{ org_admin_password }}"
+    first_name: "Storage"
+    last_name: "Admin"
+    email: "storage_admin@example.com"
+    is_superuser: false
+    organization: "Storage Services"
+
+  - username: "db_admin"
+    password: "{{ org_admin_password }}"
+    first_name: "Database"
+    last_name: "Admin"
+    email: "db_admin@example.com"
+    is_superuser: false
+    organization: "Database Services"
+
+# Assign each user as Admin for their org
+controller_roles:
+  - user: "sre_admin"
+    organization: "Service Reliability"
+    role: "admin"
+  - user: "app_admin"
+    organization: "Application Services"
+    role: "admin"
+  - user: "middleware_admin"
+    organization: "Middleware Services"
+    role: "admin"
+  - user: "storage_admin"
+    organization: "Storage Services"
+    role: "admin"
+  - user: "db_admin"
+    organization: "Database Services"
+    role: "admin"
+
+# -----------------------------------------------------------------------------
 # Custom Credential Types
 # -----------------------------------------------------------------------------
 controller_credential_types:

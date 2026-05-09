@@ -24,6 +24,10 @@
 
     # ALIA uses the same AAP gateway token — no separate variable needed
 
+    # Shared password for per-org admin users (app_admin, db_admin, etc.)
+    # These accounts let you log in as each team to browse their automation catalog.
+    org_admin_password: "{{ lookup('env', 'AAP_ORG_ADMIN_PASSWORD') | default('Redhat123!', true) }}"
+
     # Storage S3 read-only credentials (from Terraform output — single-bucket access only)
     storage_s3_access_key: "{{ lookup('env', 'STORAGE_S3_ACCESS_KEY') | default(omit, true) }}"
     storage_s3_secret_key: "{{ lookup('env', 'STORAGE_S3_SECRET_KEY') | default(omit, true) }}"
