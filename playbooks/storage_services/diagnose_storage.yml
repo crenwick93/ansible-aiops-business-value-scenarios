@@ -14,21 +14,13 @@
       ansible.builtin.meta: end_play
       when: bucket_name == ''
 
-    - name: Check S3 bucket accessibility
-      amazon.aws.s3_bucket_info:
-        name: "{{ bucket_name }}"
-        region: "{{ bucket_region }}"
-      register: bucket_info
-      ignore_errors: true
-
-    - name: List objects in bucket
+    - name: List objects in S3 bucket
       amazon.aws.aws_s3:
         bucket: "{{ bucket_name }}"
         mode: list
         region: "{{ bucket_region }}"
       register: bucket_objects
       ignore_errors: true
-      when: bucket_info is succeeded
 
     - name: Build diagnostic report
       ansible.builtin.set_fact:
@@ -37,14 +29,14 @@
           Bucket: {{ bucket_name }}
           Region: {{ bucket_region }}
 
-          Accessibility: {{ 'ACCESSIBLE' if bucket_info is succeeded else 'INACCESSIBLE — bucket may be deleted, permissions revoked, or region misconfigured' }}
+          Accessibility: {{ 'ACCESSIBLE' if bucket_objects is succeeded else 'INACCESSIBLE — bucket may be deleted, permissions revoked, or region misconfigured' }}
 
-          {% if bucket_info is succeeded %}
+          {% if bucket_objects is succeeded %}
           Object count: {{ bucket_objects.s3_keys | default([]) | length }}
-          Bucket creation date: {{ bucket_info.buckets[0].creation_date | default('unknown') }}
+          Sample objects: {{ (bucket_objects.s3_keys | default([]))[:5] | join(', ') }}
           {% endif %}
 
-          ANALYSIS: {{ 'Object storage is healthy and accessible. Document uploads are functioning normally. The issue is NOT caused by storage problems.' if bucket_info is succeeded else 'Object storage is INACCESSIBLE. This could prevent citizen document uploads from being saved, but would not directly cause payment processing failures.' }}
+          ANALYSIS: {{ 'Object storage is healthy and accessible. Document uploads are functioning normally. The issue is NOT caused by storage problems.' if bucket_objects is succeeded else 'Object storage is INACCESSIBLE. This could prevent citizen document uploads from being saved, but would not directly cause payment processing failures.' }}
 
     - name: Display report
       ansible.builtin.debug:
