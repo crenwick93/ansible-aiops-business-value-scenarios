@@ -14,7 +14,7 @@
         sys_id: "{{ incident_sys_id }}"
         state: in_progress
         other:
-          work_notes: "{{ formatted_analysis }}"
+          work_notes: "[code]{{ formatted_analysis }}[/code]"
       register: updated_incident
 
     - name: Confirm update
