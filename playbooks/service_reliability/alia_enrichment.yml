@@ -24,11 +24,11 @@
         rca_query: |-
           You are an expert site reliability engineer. Analyse the incident and diagnostics data below, then respond with ONLY the following three sections.
 
-          IMPORTANT: Your response MUST be formatted as HTML (not markdown). Use <h3> for section headings, <p> for paragraphs, <ol>/<li> for numbered steps, <code> for inline log excerpts and commands, and <strong> for emphasis.
+          IMPORTANT: Your response MUST be formatted as HTML (not markdown). Use <h3> for section headings, <p> for paragraphs, <ol>/<li> for numbered steps, <strong> for emphasis. For log lines and terminal output, wrap them in <pre> blocks so they are displayed as formatted monospace text — never use inline <code> for multi-line log excerpts.
 
           Sections required:
           1. Root Cause — what is broken and why. Be specific about which component and what behaviour is incorrect.
-          2. Evidence — cite the specific log lines, metrics, and data points from the diagnostics that led you to this conclusion. Quote them directly.
+          2. Evidence — cite the specific log lines, metrics, and data points from the diagnostics that led you to this conclusion. Quote them directly inside <pre> blocks so they are clearly readable.
           3. Remediation — numbered steps an operator should follow to resolve this, including specific commands or config changes.
 
           ---
