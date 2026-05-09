@@ -65,11 +65,17 @@
 
     - name: Derive diagnostic parameters from CMDB component classes
       ansible.builtin.set_fact:
+        queue_ci: "{{ queue_components | first | default({}) }}"
+        db_ci: "{{ db_components | first | default({}) }}"
+        storage_ci: "{{ storage_components | first | default({}) }}"
+
+    - name: Build parameterised diagnostic inputs from CMDB attributes
+      ansible.builtin.set_fact:
         message_queue_params:
           kafdrop_url: "http://dashboard.{{ demo_domain }}:9000"
-          topic_name: "{{ queue_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('payments') }}"
-          dlq_topic_name: "{{ queue_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('payments') }}.dlq"
-          broker_name: "{{ queue_components | map(attribute='name') | first | default('') }}"
+          topic_name: "{{ queue_ci.short_description | default('payments', true) }}"
+          dlq_topic_name: "{{ queue_ci.short_description | default('payments', true) }}.dlq"
+          broker_name: "{{ queue_ci.name | default('', true) }}"
         application_params:
           endpoints: "{{ app_components | map(attribute='name') | list }}"
           ports:
@@ -77,11 +83,11 @@
             app-svc: 5001
           domain: "{{ demo_domain }}"
         storage_params:
-          bucket_name: "{{ storage_components | map(attribute='name') | first | default('') }}"
+          bucket_name: "{{ storage_ci.name | default('', true) }}"
           region: "{{ AWS_REGION | default('eu-west-1') }}"
         database_params:
-          host: "{{ db_components | map(attribute='name') | first | default('') }}"
-          db_name: "{{ db_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('app_db') }}"
+          host: "{{ db_ci.name | default('', true) }}"
+          db_name: "{{ db_ci.short_description | default('app_db', true) }}"
           port: 5432
           domain: "{{ demo_domain }}"
 

@@ -32,6 +32,7 @@ components:
       environment: demo
       owned_by_group: "Service Reliability"
       version: "3.7.2"
+      short_description: "payments"
 
   - name: app-svc
     ci_class: cmdb_ci_appl
@@ -50,7 +51,7 @@ components:
       environment: demo
       owned_by_group: "Database Operations"
       version: "16"
-      database_name: passports
+      short_description: "passports"
 
   - name: passport-document-uploads
     ci_class: cmdb_ci_cloud_object_storage
