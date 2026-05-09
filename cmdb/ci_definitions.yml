@@ -58,8 +58,7 @@ components:
     attributes:
       environment: demo
       owned_by_group: "Storage Operations"
-      cloud_provider: aws
-      storage_type: object
+      short_description: "s3://passport-document-uploads"
 
 # Typed relationships following ServiceNow CMDB conventions.
 # "parent" and "child" reference component names from above, or
