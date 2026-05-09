@@ -426,28 +426,6 @@ controller_templates:
     credentials:
       - "ServiceNow ITSM"
 
-  - name: "Replay Held Messages"
-    description: "Replay messages from Kafka DLQ back to the correct topic after routing fix"
-    organization: "Service Reliability"
-    job_type: "run"
-    project: "Incident Response Automation"
-    playbook: "playbooks/service_reliability/replay_held_messages.yml"
-    inventory: "All Services"
-    ask_variables_on_launch: true
-    credentials:
-      - "Platform SSH"
-
-  - name: "Rollback Service Configuration"
-    description: "Reconcile a drifted service config with its declared state in source control — pulls known-good, restores, restarts, verifies"
-    organization: "Service Reliability"
-    job_type: "run"
-    project: "Incident Response Automation"
-    playbook: "playbooks/service_reliability/rollback_service_config.yml"
-    inventory: "All Services"
-    ask_variables_on_launch: true
-    credentials:
-      - "Platform SSH"
-
   # --- Application Services ---
   - name: "Deploy Application"
     description: "Deploy a new version of an application service with zero-downtime rolling update"
@@ -493,6 +471,17 @@ controller_templates:
     credentials:
       - "Application SSH"
 
+  - name: "Rollback Service Configuration"
+    description: "Reconcile a drifted service config with its declared state in source control — pulls known-good, restores, restarts, verifies"
+    organization: "Application Services"
+    job_type: "run"
+    project: "Application Automation"
+    playbook: "playbooks/service_reliability/rollback_service_config.yml"
+    inventory: "Application Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Application SSH"
+
   # --- Middleware Services ---
   - name: "Patch Kafka Brokers"
     description: "Rolling upgrade of Kafka brokers with partition drain and ISR verification"
@@ -533,6 +522,17 @@ controller_templates:
     job_type: "run"
     project: "Middleware Automation"
     playbook: "playbooks/middleware_services/rebalance_partitions.yml"
+    inventory: "Middleware Hosts"
+    ask_variables_on_launch: true
+    credentials:
+      - "Middleware SSH"
+
+  - name: "Replay Held Messages"
+    description: "Replay messages from Kafka DLQ back to the correct topic after routing fix"
+    organization: "Middleware Services"
+    job_type: "run"
+    project: "Middleware Automation"
+    playbook: "playbooks/service_reliability/replay_held_messages.yml"
     inventory: "Middleware Hosts"
     ask_variables_on_launch: true
     credentials:
