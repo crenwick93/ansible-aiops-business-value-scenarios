@@ -48,12 +48,20 @@
              | selectattr('name', 'defined')
              | list }}
 
-    - name: Identify components by CMDB class
+    - name: Identify components by CMDB class (with name-based fallback for dev instances)
       ansible.builtin.set_fact:
-        queue_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_messaging_server') | list }}"
-        app_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_appl') | list }}"
-        db_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | list }}"
-        storage_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_cloud_object_storage') | list }}"
+        queue_components: >-
+          {{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_messaging_server') | list
+             or component_details | selectattr('name', 'match', '.*kafka.*|.*queue.*|.*mq.*') | list }}
+        app_components: >-
+          {{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_appl') | list
+             or component_details | selectattr('name', 'match', '.*-svc$') | list }}
+        db_components: >-
+          {{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | list
+             or component_details | selectattr('name', 'match', '.*postgres.*|.*mysql.*|.*-db.*') | list }}
+        storage_components: >-
+          {{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_cloud_object_storage') | list
+             or component_details | selectattr('name', 'match', '.*upload.*|.*document.*|.*storage.*|.*bucket.*') | list }}
 
     - name: Derive diagnostic parameters from CMDB component classes
       ansible.builtin.set_fact:
