@@ -99,7 +99,10 @@ The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds
 
 ### 3. CMDB Lookup (Service Reliability Team)
 The workflow's first step queries the ServiceNow CMDB to resolve the service graph:
-- "Passport online application service" depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`
+
+![CMDB Dependency Map](docs/images/cmdb-dependency-map.png)
+
+The service graph shows the **Passport online application service** depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`
 
 It then **derives operational parameters** from each CMDB component record — based on the component's class — and publishes them for the downstream diagnostic nodes:
 
