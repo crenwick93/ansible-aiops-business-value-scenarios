@@ -30,7 +30,7 @@
           1. Root Cause — what is broken and why. Be specific about which component and what behaviour is incorrect.
           2. Evidence — cite the specific log lines, metrics, and data points from the diagnostics that led you to this conclusion. Quote them directly inside <pre> blocks so they are clearly readable.
           3. Remediation — numbered steps an operator should follow to resolve this, including specific commands or config changes.
-          4. Assignment — based on the root cause, state EXACTLY which team this incident should be reassigned to. Use the format: ASSIGN_TO: <exact team name>. Explain briefly why (e.g. "This is a routing configuration issue in payment-svc, which is owned by Application Services").
+          4. Assignment — based on the root cause, identify which component is at fault using the ownership data below, and state which team owns it. You MUST use the format: ASSIGN_TO: <exact team name from the ownership list>. Then explain briefly why (e.g. "This is a routing configuration issue in payment-svc, which is owned by Application Services"). The team name MUST match one from the Component Ownership list exactly.
 
           ---
           Incident: {{ incident_description | default('No incident description provided.') }}
