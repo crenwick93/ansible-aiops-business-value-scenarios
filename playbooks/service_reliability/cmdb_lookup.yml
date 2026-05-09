@@ -92,12 +92,25 @@
           port: 5432
           domain: "{{ demo_domain }}"
 
+    - name: Build component ownership map from CMDB
+      ansible.builtin.set_fact:
+        component_ownership: >-
+          {% set ownership = [] %}
+          {% for ci in component_details %}
+          {% set team = ci.owned_by_group | default(ci.assignment_group | default('Unassigned', true), true) %}
+          {% set _ = ownership.append(ci.name ~ ' → ' ~ team) %}
+          {% endfor %}
+          {{ ownership | join('\n') }}
+        component_ownership_map: >-
+          {{ dict(component_details | map(attribute='name') | zip(
+             component_details | map(attribute='owned_by_group', default='Unassigned'))) }}
+
     - name: Display resolved service graph
       ansible.builtin.debug:
         msg: |
           Service graph resolved from CMDB:
           {% for ci in component_details %}
-            - {{ ci.name }} ({{ ci.sys_class_name }})
+            - {{ ci.name }} ({{ ci.sys_class_name }}) → {{ ci.owned_by_group | default('Unassigned') }}
           {% endfor %}
 
           Diagnostic parameters derived:
@@ -112,6 +125,7 @@
           incident_sys_id: "{{ incident_sys_id }}"
           incident_description: "{{ incident_description | default(incident_short_desc) }}"
           service_components: "{{ component_details | map(attribute='name') | list }}"
+          component_ownership: "{{ component_ownership }}"
           message_queue_params: "{{ message_queue_params }}"
           application_params: "{{ application_params }}"
           storage_params: "{{ storage_params }}"

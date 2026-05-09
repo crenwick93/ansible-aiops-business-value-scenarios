@@ -21,7 +21,7 @@ components:
     attributes:
       ip_address: ""              # populated from Terraform outputs at setup time
       environment: demo
-      owned_by_group: "Service Reliability"
+      owned_by_group: "Application Services"
       version: "1.4.2"
 
   - name: kafka-payment-queue
@@ -30,7 +30,7 @@ components:
     attributes:
       ip_address: ""
       environment: demo
-      owned_by_group: "Service Reliability"
+      owned_by_group: "Middleware Services"
       version: "3.7.2"
       short_description: "payments"
 
@@ -40,7 +40,7 @@ components:
     attributes:
       ip_address: ""
       environment: demo
-      owned_by_group: "Service Reliability"
+      owned_by_group: "Application Services"
       version: "1.2.0"
 
   - name: postgres-app-db
@@ -58,7 +58,7 @@ components:
     description: "[aiops-demo] AWS S3 bucket — citizen passport photos and supporting documents"
     attributes:
       environment: demo
-      owned_by_group: "Storage Operations"
+      owned_by_group: "Storage Services"
       short_description: "s3://passport-document-uploads"
 
 # Typed relationships following ServiceNow CMDB conventions.

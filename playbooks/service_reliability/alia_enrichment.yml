@@ -22,7 +22,7 @@
     - name: Build root cause analysis query
       ansible.builtin.set_fact:
         rca_query: |-
-          You are an expert site reliability engineer. Analyse the incident and diagnostics data below, then respond with ONLY the following three sections.
+          You are an expert site reliability engineer. Analyse the incident and diagnostics data below, then respond with ONLY the following four sections.
 
           IMPORTANT: Your response MUST be formatted as HTML (not markdown). Use <h3> for section headings, <p> for paragraphs, <ol>/<li> for numbered steps, <strong> for emphasis. For log lines and terminal output, wrap them in <pre> blocks and use <br> tags to separate each line within the block (do NOT rely on newline characters alone). Each log line or metric must be on its own visual line.
 
@@ -30,6 +30,7 @@
           1. Root Cause — what is broken and why. Be specific about which component and what behaviour is incorrect.
           2. Evidence — cite the specific log lines, metrics, and data points from the diagnostics that led you to this conclusion. Quote them directly inside <pre> blocks so they are clearly readable.
           3. Remediation — numbered steps an operator should follow to resolve this, including specific commands or config changes.
+          4. Assignment — based on the root cause, state EXACTLY which team this incident should be reassigned to. Use the format: ASSIGN_TO: <exact team name>. Explain briefly why (e.g. "This is a routing configuration issue in payment-svc, which is owned by Application Services").
 
           ---
           Incident: {{ incident_description | default('No incident description provided.') }}
@@ -38,6 +39,9 @@
           {{ full_diagnostics }}
 
           Affected components: {{ service_components | default([]) | join(', ') }}
+
+          Component ownership (from CMDB):
+          {{ component_ownership | default('No ownership data available.') }}
 
     - name: Call ALIA for root cause analysis
       ansible.builtin.uri:
@@ -59,12 +63,21 @@
       ansible.builtin.set_fact:
         alia_analysis: "{{ (rca_response.json | default((rca_response.content | from_json), true)).response | default('No analysis returned.') }}"
 
+    - name: Extract recommended assignment group
+      ansible.builtin.set_fact:
+        recommended_group: "{{ alia_analysis | regex_search('ASSIGN_TO:\\s*(.+?)(?:<|$)', '\\1') | default(['Service Reliability'], true) | first | trim }}"
+
     - name: Display analysis
       ansible.builtin.debug:
         msg: "{{ alia_analysis }}"
+
+    - name: Display recommended assignment
+      ansible.builtin.debug:
+        msg: "AI recommends reassignment to: {{ recommended_group }}"
 
     - name: Publish analysis for downstream workflow steps
       ansible.builtin.set_stats:
         data:
           alia_analysis: "{{ alia_analysis }}"
           incident_sys_id: "{{ incident_sys_id }}"
+          recommended_group: "{{ recommended_group }}"

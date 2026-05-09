@@ -1,5 +1,5 @@
 ---
-- name: Update SNOW Incident - Post analysis to work notes
+- name: Update SNOW Incident - Post analysis and reassign
   hosts: localhost
   gather_facts: false
 
@@ -13,14 +13,27 @@
       ansible.builtin.set_fact:
         formatted_analysis: "{{ raw_analysis | regex_replace('<br>\\s*<br>', '<br>') | regex_replace('(</?(?:h[1-6]|p|ol|ul|li|pre|div)[^>]*>)\\s*<br>', '\\1') | regex_replace('<br>\\s*(</?(?:h[1-6]|p|ol|ul|li|pre|div))', '\\1') }}"
 
-    - name: Update incident with AI analysis and set to In Progress
+    - name: Resolve assignment group sys_id
+      servicenow.itsm.api_info:
+        resource: sys_user_group
+        sysparm_query: "name={{ recommended_group | default('Service Reliability') }}"
+        sysparm_limit: 1
+      register: group_lookup
+
+    - name: Set assignment group ID
+      ansible.builtin.set_fact:
+        assign_group_id: "{{ group_lookup.record[0].sys_id | default('') }}"
+      when: group_lookup.record | length > 0
+
+    - name: Update incident with AI analysis and reassign to recommended team
       servicenow.itsm.incident:
         sys_id: "{{ incident_sys_id }}"
         state: in_progress
         other:
           work_notes: "[code]{{ formatted_analysis }}[/code]"
+          assignment_group: "{{ assign_group_id | default('') }}"
       register: updated_incident
 
     - name: Confirm update
       ansible.builtin.debug:
-        msg: "Incident {{ updated_incident.record.number }} updated with AI analysis — state set to In Progress"
+        msg: "Incident {{ updated_incident.record.number }} updated with AI analysis — reassigned to {{ recommended_group | default('Service Reliability') }}"
