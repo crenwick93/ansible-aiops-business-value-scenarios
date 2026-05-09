@@ -92,16 +92,20 @@
           port: 5432
           domain: "{{ demo_domain }}"
 
-    - name: Build component ownership map from CMDB class
+    - name: Build component ownership map from classified groups
       ansible.builtin.set_fact:
-        class_to_team:
-          cmdb_ci_appl: "Application Services"
-          cmdb_ci_messaging_server: "Middleware Services"
-          cmdb_ci_db_instance: "Database Operations"
-          cmdb_ci_cloud_object_storage: "Storage Services"
         component_ownership: |-
-          {% for ci in component_details %}
-          {{ ci.name }} → {{ class_to_team[ci.sys_class_name] | default('Service Reliability') }}
+          {% for ci in app_components %}
+          {{ ci.name }} → Application Services
+          {% endfor %}
+          {% for ci in queue_components %}
+          {{ ci.name }} → Middleware Services
+          {% endfor %}
+          {% for ci in db_components %}
+          {{ ci.name }} → Database Operations
+          {% endfor %}
+          {% for ci in storage_components %}
+          {{ ci.name }} → Storage Services
           {% endfor %}
 
     - name: Display resolved service graph
@@ -109,8 +113,11 @@
         msg: |
           Service graph resolved from CMDB:
           {% for ci in component_details %}
-            - {{ ci.name }} ({{ ci.sys_class_name }}) → {{ ci.owned_by_group | default('Unassigned') }}
+            - {{ ci.name }} ({{ ci.sys_class_name }})
           {% endfor %}
+
+          Component ownership:
+          {{ component_ownership }}
 
           Diagnostic parameters derived:
             Message Queue: broker={{ message_queue_params.broker_name }}, topic={{ message_queue_params.topic_name }}, dlq={{ message_queue_params.dlq_topic_name }}
