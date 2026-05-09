@@ -7,7 +7,11 @@
 
     - name: Prepare analysis for ServiceNow rendering
       ansible.builtin.set_fact:
-        formatted_analysis: "{{ alia_analysis | default('No analysis available.') | regex_replace('\n', '<br>') }}"
+        raw_analysis: "{{ alia_analysis | default('No analysis available.') | regex_replace('\n', '<br>') }}"
+
+    - name: Clean up line breaks around block-level HTML elements
+      ansible.builtin.set_fact:
+        formatted_analysis: "{{ raw_analysis | regex_replace('<br>\\s*<br>', '<br>') | regex_replace('(</?(?:h[1-6]|p|ol|ul|li|pre|div)[^>]*>)\\s*<br>', '\\1') | regex_replace('<br>\\s*(</?(?:h[1-6]|p|ol|ul|li|pre|div))', '\\1') }}"
 
     - name: Update incident with AI analysis and set to In Progress
       servicenow.itsm.incident:

@@ -40,8 +40,6 @@
           Citizen-facing status page shows red warning: "Your payment was received
           but your application has not yet progressed."
 
-          Premium and child applications appear to be processing normally.
-          Issue appears isolated to Standard Adult fee type.
         impact: medium
         urgency: high
         other:
