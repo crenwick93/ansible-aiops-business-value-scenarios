@@ -93,6 +93,24 @@ output "domain_name" {
   value       = var.domain_name
 }
 
+output "document_uploads_bucket" {
+  description = "S3 bucket for citizen document uploads"
+  value = {
+    name   = aws_s3_bucket.document_uploads.id
+    arn    = aws_s3_bucket.document_uploads.arn
+    region = var.aws_region
+  }
+}
+
+output "storage_diag_credentials" {
+  description = "Read-only AWS credentials for AAP storage diagnostics (single-bucket access only)"
+  sensitive   = true
+  value = {
+    access_key = aws_iam_access_key.aap_storage_readonly.id
+    secret_key = aws_iam_access_key.aap_storage_readonly.secret
+  }
+}
+
 output "all_instance_ips" {
   description = "Public and private IP for each of the four instances"
   value = {

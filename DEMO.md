@@ -41,10 +41,11 @@ The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds
 │                         ServiceNow CMDB                                      │
 │                                                                              │
 │   Business Service: "Passport Online Application Service"                    │
-│       ├── payment-svc        (cmdb_ci_appl)                                  │
-│       ├── app-svc            (cmdb_ci_appl)                                  │
-│       ├── kafka-payment-queue (cmdb_ci_messaging_server)                     │
-│       └── postgres-app-db    (cmdb_ci_db_instance)                           │
+│       ├── payment-svc              (cmdb_ci_appl)                            │
+│       ├── app-svc                  (cmdb_ci_appl)                            │
+│       ├── kafka-payment-queue      (cmdb_ci_messaging_server)                │
+│       ├── postgres-app-db          (cmdb_ci_db_instance)                     │
+│       └── passport-document-uploads (cmdb_ci_cloud_object_storage)           │
 └────────────────────────────────┬────────────────────────────────────────────┘
                                  │
                                  ▼
@@ -53,12 +54,11 @@ The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds
 │                                                                              │
 │   Resolves service graph → derives parameters by component class:            │
 │                                                                              │
-│   cmdb_ci_appl           → application_params.endpoints = [payment-svc,      │
-│                             app-svc], ports = {payment-svc: 5000, ...}        │
-│   cmdb_ci_messaging_server → message_queue_params.broker_name,               │
-│                              topic_name, dlq_topic_name, kafdrop_url          │
-│   cmdb_ci_db_instance    → database_params.host, db_name, port               │
-│                            → storage_params.host, threshold_pct               │
+│   cmdb_ci_appl                  → application_params.endpoints, ports        │
+│   cmdb_ci_messaging_server      → message_queue_params.broker_name,          │
+│                                   topic_name, dlq_topic_name, kafdrop_url    │
+│   cmdb_ci_cloud_object_storage  → storage_params.bucket_name, region         │
+│   cmdb_ci_db_instance           → database_params.host, db_name, port        │
 └───────┬──────────────┬──────────────┬──────────────┬────────────────────────┘
         │              │              │              │
         ▼              ▼              ▼              ▼
@@ -67,13 +67,13 @@ The EDA rulebook polls ServiceNow for new incidents (state=1). Within 10 seconds
 │  Application │ │  Message Queue│ │  Storage   │ │  Database      │
 │              │ │               │ │            │ │                │
 │ Uses:        │ │ Uses:         │ │ Uses:      │ │ Uses:          │
-│ • endpoints  │ │ • kafdrop_url │ │ • host     │ │ • host         │
-│ • ports      │ │ • topic_name  │ │ • domain   │ │ • db_name      │
-│ • domain     │ │ • dlq_topic   │ │ • threshold│ │ • port         │
-│              │ │ • broker_name │ │            │ │ • domain       │
-│ Skips if     │ │               │ │ Skips if   │ │                │
-│ endpoints=[] │ │ Skips if      │ │ host=''    │ │ Skips if       │
-│              │ │ kafdrop_url=''│ │            │ │ host=''        │
+│ • endpoints  │ │ • kafdrop_url │ │ • bucket   │ │ • host         │
+│ • ports      │ │ • topic_name  │ │ • region   │ │ • db_name      │
+│ • domain     │ │ • dlq_topic   │ │            │ │ • port         │
+│              │ │ • broker_name │ │ Checks:    │ │ • domain       │
+│ Skips if     │ │               │ │ • S3 access│ │                │
+│ endpoints=[] │ │ Skips if      │ │ • obj count│ │ Skips if       │
+│              │ │ kafdrop_url=''│ │ • capacity │ │ host=''        │
 └──────┬───────┘ └──────┬────────┘ └─────┬──────┘ └───────┬────────┘
        │                │                 │                │
        └────────────────┴────────┬────────┴────────────────┘
@@ -102,16 +102,16 @@ The workflow's first step queries the ServiceNow CMDB to resolve the service gra
 
 ![CMDB Dependency Map](docs/images/cmdb-dependency-map.png)
 
-The service graph shows the **Passport online application service** depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`
+The service graph shows the **Passport online application service** depends on: `payment-svc`, `kafka-payment-queue`, `app-svc`, `postgres-app-db`, `passport-document-uploads`
 
 It then **derives operational parameters** from each CMDB component record — based on the component's class — and publishes them for the downstream diagnostic nodes:
 
 | CMDB Component | Class | Parameters Derived |
 |---------------|-------|-------------------|
-| `kafka-payment-queue` | Message Queue | Kafdrop URL, topic name (`payments`), DLQ topic name (`payments.dlq`), broker hostname |
-| `payment-svc` / `app-svc` | Application | Health endpoint URLs for each service |
-| `postgres-app-db` | Database Instance | Database hostname, database name (`passports`) |
-| (storage host) | Database Instance | Storage hostname for disk capacity checks |
+| `kafka-payment-queue` | Messaging Server | Kafdrop URL, topic name (`payments`), DLQ topic name (`payments.dlq`), broker hostname |
+| `payment-svc` / `app-svc` | Application | Health endpoint URLs and ports for each service |
+| `passport-document-uploads` | Cloud Object Storage | S3 bucket name, AWS region |
+| `postgres-app-db` | Database Instance | Database hostname, database name, port |
 
 **This is critical:** The diagnostic playbooks are generic — they don't know about passports, Kafka topic names, or which database to check. The CMDB provides those parameters. Without the CMDB Lookup, the diagnostics literally don't know what to target.
 
@@ -127,7 +127,7 @@ The workflow fans out to four different organisational teams — all running in 
 |------|------|---------------|---------------------|
 | Diagnose Application | Application Services | Health endpoints for payment-svc and app-svc | Endpoint URLs |
 | Diagnose Message Queue | Middleware Services | Kafka topic stats, DLQ message counts via Kafdrop | Topic name, DLQ name, Kafdrop URL |
-| Diagnose Storage | Storage Services | Disk capacity on the storage host | Hostname |
+| Diagnose Storage | Storage Services | S3 bucket accessibility, object count, capacity | Bucket name, AWS region |
 | Diagnose Database | Database Services | Database connectivity and query health | DB hostname, DB name |
 
 Each diagnostic playbook is **generic and reusable**. It doesn't know about passports or payments — it receives parameters from the CMDB Lookup (topic names, URLs, hostnames, DB names) and runs its standard checks against those targets. If the CMDB didn't identify a relevant component for a team, that diagnostic **skips cleanly** — no errors, no wasted time.
@@ -143,7 +143,7 @@ All diagnostic results converge here. ALIA receives:
 - The incident description
 - The Kafka diagnostics (showing ~47% of payments are in the DLQ)
 - The application diagnostics (all services healthy)
-- The storage diagnostics (capacity fine)
+- The storage diagnostics (S3 bucket accessible, capacity within limits)
 - The database diagnostics (connections healthy)
 
 ALIA produces a structured root cause analysis with step-by-step remediation.

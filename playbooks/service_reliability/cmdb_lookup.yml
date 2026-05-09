@@ -53,6 +53,7 @@
         queue_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_messaging_server') | list }}"
         app_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_appl') | list }}"
         db_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_db_instance') | list }}"
+        storage_components: "{{ component_details | selectattr('sys_class_name', 'equalto', 'cmdb_ci_cloud_object_storage') | list }}"
 
     - name: Derive diagnostic parameters from CMDB component classes
       ansible.builtin.set_fact:
@@ -68,9 +69,8 @@
             app-svc: 5001
           domain: "{{ demo_domain }}"
         storage_params:
-          host: "{{ db_components | map(attribute='name') | first | default('') }}"
-          domain: "{{ demo_domain }}"
-          threshold_pct: 85
+          bucket_name: "{{ storage_components | map(attribute='name') | first | default('') }}"
+          region: "{{ lookup('env', 'AWS_REGION') | default('eu-west-1', true) }}"
         database_params:
           host: "{{ db_components | map(attribute='name') | first | default('') }}"
           db_name: "{{ db_components | first | default({}) | dict2items | selectattr('key', 'equalto', 'short_description') | map(attribute='value') | first | default('app_db') }}"
@@ -88,7 +88,7 @@
           Diagnostic parameters derived:
             Message Queue: broker={{ message_queue_params.broker_name }}, topic={{ message_queue_params.topic_name }}, dlq={{ message_queue_params.dlq_topic_name }}
             Applications: {{ application_params.endpoints }} (ports: {{ application_params.ports }})
-            Storage: host={{ storage_params.host }}, threshold={{ storage_params.threshold_pct }}%
+            Storage: bucket={{ storage_params.bucket_name }}, region={{ storage_params.region }}
             Database: host={{ database_params.host }}, db={{ database_params.db_name }}, port={{ database_params.port }}
 
     - name: Publish parameters for downstream diagnostic nodes

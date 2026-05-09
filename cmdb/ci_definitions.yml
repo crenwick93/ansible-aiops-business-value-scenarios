@@ -52,6 +52,15 @@ components:
       version: "16"
       database_name: passports
 
+  - name: passport-document-uploads
+    ci_class: cmdb_ci_cloud_object_storage
+    description: "[aiops-demo] AWS S3 bucket — citizen passport photos and supporting documents"
+    attributes:
+      environment: demo
+      owned_by_group: "Storage Operations"
+      cloud_provider: aws
+      storage_type: object
+
 # Typed relationships following ServiceNow CMDB conventions.
 # "parent" and "child" reference component names from above, or
 # "business_service" for the top-level service.
@@ -82,4 +91,12 @@ relationships:
 
   - parent: app-svc
     child: postgres-app-db
+    type: "Uses::Used by"
+
+  - parent: business_service
+    child: passport-document-uploads
+    type: "Contains::Used by"
+
+  - parent: app-svc
+    child: passport-document-uploads
     type: "Uses::Used by"

@@ -24,6 +24,10 @@
 
     # ALIA uses the same AAP gateway token — no separate variable needed
 
+    # Storage S3 read-only credentials (from Terraform output — single-bucket access only)
+    storage_s3_access_key: "{{ lookup('env', 'STORAGE_S3_ACCESS_KEY') | default(omit, true) }}"
+    storage_s3_secret_key: "{{ lookup('env', 'STORAGE_S3_SECRET_KEY') | default(omit, true) }}"
+
     # Monitoring SSH key (EC2 instance provisioned by Terraform — used for Machine credentials)
     monitoring_ssh_key: "{{ lookup('file', monitoring_ssh_key_path, errors='ignore') | default(omit, true) }}"
     monitoring_ssh_key_path: "{{ lookup('env', 'MONITORING_SSH_KEY_PATH') | default(playbook_dir + '/../../infra/terraform/aiops-demo.pem', true) }}"

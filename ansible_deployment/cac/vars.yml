@@ -304,6 +304,14 @@ controller_credentials:
       username: ec2-user
       ssh_key_data: "{{ monitoring_ssh_key }}"
 
+  - name: "Storage S3 Read-Only"
+    description: "AWS credentials — read-only access to the passport-document-uploads S3 bucket only"
+    organization: "Storage Services"
+    credential_type: "Amazon Web Services"
+    inputs:
+      access_key: "{{ storage_s3_access_key | default('') }}"
+      secret_key: "{{ storage_s3_secret_key | default('') }}"
+
   # Database Services credentials
   - name: "Database SSH"
     description: "SSH key for PostgreSQL database hosts"
@@ -468,13 +476,15 @@ controller_templates:
 
   # --- Storage Services ---
   - name: "Diagnose Storage"
-    description: "Check storage capacity and disk health for CMDB-identified hosts"
+    description: "Check S3 object storage bucket health and capacity for CMDB-identified storage"
     organization: "Storage Services"
     job_type: "run"
     project: "Storage Automation"
     playbook: "playbooks/storage_services/diagnose_storage.yml"
     inventory: "All Services"
     ask_variables_on_launch: true
+    credentials:
+      - "Storage S3 Read-Only"
 
   # --- Database Services ---
   - name: "Diagnose Database"

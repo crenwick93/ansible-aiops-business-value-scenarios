@@ -4,37 +4,53 @@
   gather_facts: false
 
   vars:
-    storage_host: "{{ storage_params.host | default('') }}"
-    domain: "{{ storage_params.domain | default('') }}"
-    threshold_pct: "{{ storage_params.threshold_pct | default(85) }}"
+    bucket_name: "{{ storage_params.bucket_name | default('') }}"
+    bucket_region: "{{ storage_params.region | default('eu-west-1') }}"
+    capacity_threshold_gb: 50
 
   tasks:
 
     - name: Skip if no storage parameters provided by CMDB
       ansible.builtin.meta: end_play
-      when: storage_host == ''
+      when: bucket_name == ''
 
-    - name: Check storage host reachability
-      ansible.builtin.uri:
-        url: "http://{{ storage_host }}.{{ domain }}:5432/"
-        method: GET
-        return_content: true
-        timeout: 5
-      register: host_reachable
+    - name: Check S3 bucket accessibility
+      ansible.builtin.command:
+        cmd: "aws s3api head-bucket --bucket {{ bucket_name }} --region {{ bucket_region }}"
+      register: bucket_accessible
       ignore_errors: true
+      changed_when: false
+
+    - name: List objects in bucket
+      ansible.builtin.command:
+        cmd: "aws s3api list-objects-v2 --bucket {{ bucket_name }} --region {{ bucket_region }} --query '{ObjectCount: length(Contents || `[]`), TotalSizeBytes: sum(Contents[].Size || `[0]`)}' --output json"
+      register: bucket_objects
+      ignore_errors: true
+      changed_when: false
+      when: bucket_accessible is succeeded
+
+    - name: Parse bucket stats
+      ansible.builtin.set_fact:
+        bucket_stats: "{{ bucket_objects.stdout | from_json }}"
+      when: bucket_accessible is succeeded and bucket_objects is succeeded
 
     - name: Build diagnostic report
       ansible.builtin.set_fact:
         storage_report: |
-          STORAGE DIAGNOSTICS
-          Storage host: {{ storage_host }}.{{ domain }}
-          Capacity threshold: {{ threshold_pct }}%
+          STORAGE DIAGNOSTICS (Object Storage)
+          Bucket: {{ bucket_name }}
+          Region: {{ bucket_region }}
 
-          Host reachable: {{ 'yes (port responding)' if host_reachable is succeeded else 'port not responding on HTTP (expected for non-HTTP storage — checking via network reachability)' }}
-          Disk usage: below {{ threshold_pct }}% threshold (no capacity issues detected)
+          Accessibility: {{ 'ACCESSIBLE' if bucket_accessible is succeeded else 'INACCESSIBLE — bucket may be deleted, permissions revoked, or region misconfigured' }}
 
-          ANALYSIS: Storage capacity is within normal limits. No disk pressure or volume exhaustion found.
-          The issue is NOT caused by storage constraints.
+          {% if bucket_accessible is succeeded and bucket_stats is defined %}
+          Object count: {{ bucket_stats.ObjectCount | default(0) }}
+          Total size: {{ ((bucket_stats.TotalSizeBytes | default(0)) / 1048576) | round(2) }} MB
+          Capacity threshold: {{ capacity_threshold_gb }} GB
+          Status: {{ 'WITHIN LIMITS' if ((bucket_stats.TotalSizeBytes | default(0)) / 1073741824) < capacity_threshold_gb else 'WARNING — approaching capacity threshold' }}
+          {% endif %}
+
+          ANALYSIS: {{ 'Object storage is healthy and within capacity limits. Document uploads are functioning normally. The issue is NOT caused by storage problems.' if bucket_accessible is succeeded else 'Object storage is INACCESSIBLE. This could prevent citizen document uploads from being saved, but would not directly cause payment processing failures.' }}
 
     - name: Display report
       ansible.builtin.debug:
