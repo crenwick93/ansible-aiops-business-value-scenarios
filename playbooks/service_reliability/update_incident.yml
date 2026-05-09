@@ -17,7 +17,6 @@
       servicenow.itsm.api_info:
         resource: sys_user_group
         sysparm_query: "name={{ recommended_group | default('Service Reliability') }}"
-        sysparm_limit: 1
       register: group_lookup
 
     - name: Set assignment group ID
