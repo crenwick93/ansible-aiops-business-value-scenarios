@@ -31,7 +31,7 @@ aap_organizations:
 # -----------------------------------------------------------------------------
 # One admin per org so you can log in and browse each team's automation catalog.
 # Password is shared (set via AAP_ORG_ADMIN_PASSWORD in .env).
-controller_user_accounts:
+aap_user_accounts:
   - username: "sre_admin"
     password: "{{ org_admin_password }}"
     first_name: "SRE"
