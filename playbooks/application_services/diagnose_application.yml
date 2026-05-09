@@ -1,5 +1,5 @@
 ---
-- name: Diagnose Application
+- name: Diagnose Application - Health Checks
   hosts: localhost
   gather_facts: false
 
@@ -25,10 +25,10 @@
       register: health_results
       ignore_errors: true
 
-    - name: Build diagnostic report
+    - name: Build health report
       ansible.builtin.set_fact:
-        app_report: |
-          APPLICATION DIAGNOSTICS
+        health_report: |
+          APPLICATION HEALTH
           Domain: {{ domain }}
           Components checked: {{ app_endpoints | join(', ') }}
 
@@ -40,6 +40,32 @@
           {% endfor %}
 
           Summary: {{ health_results.results | selectattr('failed', 'equalto', true) | list | length }} of {{ health_results.results | length }} services unreachable.
+
+    - name: Store health report for later
+      ansible.builtin.set_stats:
+        data:
+          _health_report: "{{ health_report }}"
+
+- name: Diagnose Application - Collect Service Logs
+  hosts: payment-svc
+  gather_facts: false
+
+  tasks:
+
+    - name: Collect recent service logs
+      ansible.builtin.command:
+        cmd: journalctl -u payment-svc --no-pager -n 20 --output=short
+      register: service_logs
+      changed_when: false
+      become: true
+
+    - name: Build full diagnostic report
+      ansible.builtin.set_fact:
+        app_report: |
+          {{ _health_report | default('Health check data unavailable') }}
+
+          RECENT SERVICE LOGS (payment-svc, last 20 lines):
+          {{ service_logs.stdout }}
 
     - name: Display report
       ansible.builtin.debug:
