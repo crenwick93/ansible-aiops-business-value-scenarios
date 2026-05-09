@@ -77,7 +77,7 @@
             app-svc: 5001
           domain: "{{ demo_domain }}"
         storage_params:
-          bucket_name: "{{ STORAGE_S3_BUCKET_NAME | default(storage_components | map(attribute='name') | first | default('')) }}"
+          bucket_name: "{{ storage_components | map(attribute='name') | first | default('') }}"
           region: "{{ AWS_REGION | default('eu-west-1') }}"
         database_params:
           host: "{{ db_components | map(attribute='name') | first | default('') }}"

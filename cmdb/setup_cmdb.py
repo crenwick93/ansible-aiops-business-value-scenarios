@@ -213,6 +213,13 @@ def main() -> int:
     with open(CI_DEFS_PATH) as f:
         defs = yaml.safe_load(f)
 
+    # Resolve environment variables in component names (e.g. S3 bucket name from Terraform)
+    bucket_name = os.environ.get("STORAGE_S3_BUCKET_NAME", "")
+    if bucket_name:
+        for comp in defs["components"]:
+            if comp["ci_class"] == "cmdb_ci_cloud_object_storage":
+                comp["name"] = bucket_name
+
     # --- Business service ---
     bs = defs["business_service"]
     print(f"\nBusiness service: {bs['name']}")
