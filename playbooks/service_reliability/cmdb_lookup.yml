@@ -76,6 +76,7 @@
           topic_name: "{{ queue_ci.short_description | default('payments', true) }}"
           dlq_topic_name: "{{ queue_ci.short_description | default('payments', true) }}.dlq"
           broker_name: "{{ queue_ci.name | default('', true) }}"
+          domain: "{{ demo_domain }}"
         application_params:
           endpoints: "{{ app_components | map(attribute='name') | list }}"
           ports:

@@ -39,7 +39,7 @@
             Response: {{ result.json | default('no response') }}
           {% endfor %}
 
-          ANALYSIS: {% if health_results.results | selectattr('failed', 'equalto', true) | list | length > 0 %}One or more application endpoints are unreachable — possible service outage or deployment issue.{% else %}All application services report healthy. The issue is NOT a service outage. When services are up but processing is stalled, the problem is typically a configuration or routing issue — not infrastructure failure.{% endif %}
+          Summary: {{ health_results.results | selectattr('failed', 'equalto', true) | list | length }} of {{ health_results.results | length }} services unreachable.
 
     - name: Display report
       ansible.builtin.debug:

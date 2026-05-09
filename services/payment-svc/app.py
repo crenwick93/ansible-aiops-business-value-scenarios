@@ -49,6 +49,8 @@ def health():
     return jsonify({"status": "healthy"}), 200
 
 
+
+
 @app.route("/pay", methods=["POST"])
 def pay():
     if not request.is_json:

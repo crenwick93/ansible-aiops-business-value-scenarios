@@ -8,6 +8,7 @@
     topic_name: "{{ message_queue_params.topic_name | default('') }}"
     dlq_topic_name: "{{ message_queue_params.dlq_topic_name | default('') }}"
     broker_name: "{{ message_queue_params.broker_name | default('unknown') }}"
+    domain: "{{ message_queue_params.domain | default('') }}"
 
   tasks:
 
@@ -38,11 +39,26 @@
       ignore_errors: true
       when: dlq_topic_name != ''
 
+    - name: Sample recent DLQ messages
+      ansible.builtin.uri:
+        url: "http://dashboard.{{ domain }}:8080/api/kafka/peek/{{ dlq_topic_name }}?count=5"
+        method: GET
+        return_content: true
+        timeout: 10
+      register: dlq_messages
+      ignore_errors: true
+      when: dlq_topic is succeeded
+
     - name: Calculate message counts
       ansible.builtin.set_fact:
         primary_count: "{{ primary_topic.json.partitions[0].size | default(0) }}"
         dlq_count: "{{ dlq_topic.json.partitions[0].size | default(0) }}"
       when: primary_topic is succeeded
+
+    - name: Extract fee types from DLQ samples
+      ansible.builtin.set_fact:
+        dlq_sample_messages: "{{ dlq_messages.json.messages | default([]) }}"
+      when: dlq_messages is defined and dlq_messages is succeeded
 
     - name: Build diagnostic report
       ansible.builtin.set_fact:
@@ -60,9 +76,16 @@
             Status: {{ 'healthy' if dlq_topic is succeeded else 'unreachable' }}
             WARNING: No consumer processes messages from the DLQ — messages here are STUCK and unprocessed.
 
-          ANALYSIS: The DLQ contains {{ dlq_count | default('?') }} messages out of {{ ((primary_count | default(0) | int) + (dlq_count | default(0) | int)) }} total ({{ ((dlq_count | default(0) | int) * 100 / (((primary_count | default(1) | int) + (dlq_count | default(0) | int)) | default(1))) | round(1) }}%).
-          A healthy system should have near-zero DLQ messages.
-          This volume indicates the producing service is actively ROUTING messages to the DLQ rather than messages failing during processing.
+          {% if dlq_sample_messages | default([]) | length > 0 %}
+          DLQ Message Samples ({{ dlq_sample_messages | length }} most recent):
+          {% for msg in dlq_sample_messages %}
+            - fee_type={{ msg.fee_type | default('unknown') }}, citizen_ref={{ msg.citizen_ref | default('?') }}
+          {% endfor %}
+
+          Fee types in DLQ: {{ dlq_sample_messages | map(attribute='fee_type') | unique | list | join(', ') }}
+          {% endif %}
+
+          Summary: {{ dlq_count | default(0) }} of {{ ((primary_count | default(0) | int) + (dlq_count | default(0) | int)) }} total messages are in the dead letter queue ({{ ((dlq_count | default(0) | int) * 100 / (((primary_count | default(1) | int) + (dlq_count | default(0) | int)) | default(1))) | round(1) }}%).
 
     - name: Display report
       ansible.builtin.debug:

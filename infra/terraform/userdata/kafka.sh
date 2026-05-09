@@ -232,6 +232,7 @@ def sample_messages(name: str):
         lo, hi = c.get_watermark_offsets(tp0, 10)
         start = max(lo, hi - limit)
         c.assign([tp0])
+        c.poll(0.1)
         c.seek(TopicPartition(name, p0, offset=start))
         deadline = time() + 20
         while len(collected) < limit and time() < deadline:

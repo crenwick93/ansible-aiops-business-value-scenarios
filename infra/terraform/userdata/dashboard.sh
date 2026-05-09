@@ -152,6 +152,23 @@ def engineering_throughput():
     except Exception as e:
         return jsonify(error=str(e)), 503
 
+@app.route("/api/kafka/peek/<topic>")
+def kafka_peek(topic):
+    """Proxy to Kafka admin API for message inspection."""
+    limit = request.args.get("count", 5)
+    try:
+        r = requests.get(f"{KAFKA_ADMIN_URL}/topics/{topic}/messages?limit={limit}", timeout=15)
+        data = r.json()
+        messages = []
+        for msg in data.get("messages", []):
+            try:
+                messages.append(json.loads(msg["value"]))
+            except (json.JSONDecodeError, TypeError, KeyError):
+                messages.append(msg)
+        return jsonify(topic=topic, count=len(messages), messages=messages), r.status_code
+    except Exception as e:
+        return jsonify(error=str(e)), 503
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080, debug=False)
 PY
