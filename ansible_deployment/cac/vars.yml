@@ -476,7 +476,7 @@ controller_templates:
     organization: "Application Services"
     job_type: "run"
     project: "Application Automation"
-    playbook: "playbooks/service_reliability/rollback_service_config.yml"
+    playbook: "playbooks/application_services/rollback_service_config.yml"
     inventory: "Application Hosts"
     ask_variables_on_launch: true
     credentials:
@@ -532,7 +532,7 @@ controller_templates:
     organization: "Middleware Services"
     job_type: "run"
     project: "Middleware Automation"
-    playbook: "playbooks/service_reliability/replay_held_messages.yml"
+    playbook: "playbooks/middleware_services/replay_held_messages.yml"
     inventory: "Middleware Hosts"
     ask_variables_on_launch: true
     credentials:
