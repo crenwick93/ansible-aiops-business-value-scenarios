@@ -84,7 +84,7 @@
             app-svc: 5001
           domain: "{{ demo_domain }}"
         storage_params:
-          bucket_name: "{{ storage_ci.name | default('', true) }}"
+          bucket_name: "{{ storage_ci.short_description | default('', true) | regex_replace('^s3://', '') }}"
           region: "{{ AWS_REGION | default('eu-west-1') }}"
         database_params:
           host: "{{ db_ci.name | default('', true) }}"

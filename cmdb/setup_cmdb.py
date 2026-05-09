@@ -45,23 +45,30 @@ def find_existing(table: str, query: str) -> dict | None:
     """Return the first record matching `query`, or None."""
     url = snow_url(f"/api/now/table/{table}?sysparm_query={query}&sysparm_limit=1")
     r = session.get(url)
+    if r.status_code == 400 and table != "cmdb_ci":
+        url = snow_url(f"/api/now/table/cmdb_ci?sysparm_query={query}&sysparm_limit=1")
+        r = session.get(url)
     r.raise_for_status()
     results = r.json().get("result", [])
     return results[0] if results else None
 
 
 def create_or_update(table: str, name: str, ci_class: str, data: dict) -> str:
-    """Create a CI or return its sys_id if it already exists."""
+    """Create a CI or return its sys_id if it already exists.
+    Falls back to cmdb_ci if the class-specific table doesn't exist."""
     query = f"name={name}^descriptionLIKE{DEMO_TAG}"
     existing = find_existing(table, query)
     if existing:
         sys_id = existing["sys_id"]
         print(f"  EXISTS  {ci_class}/{name}  sys_id={sys_id}")
-        r = session.patch(snow_url(f"/api/now/table/{table}/{sys_id}"), json=data)
+        patch_url = snow_url(f"/api/now/table/cmdb_ci/{sys_id}")
+        r = session.patch(patch_url, json=data)
         r.raise_for_status()
         return sys_id
 
     r = session.post(snow_url(f"/api/now/table/{table}"), json=data)
+    if r.status_code == 400 and table != "cmdb_ci":
+        r = session.post(snow_url("/api/now/table/cmdb_ci"), json=data)
     r.raise_for_status()
     sys_id = r.json()["result"]["sys_id"]
     print(f"  CREATED {ci_class}/{name}  sys_id={sys_id}")
@@ -213,12 +220,13 @@ def main() -> int:
     with open(CI_DEFS_PATH) as f:
         defs = yaml.safe_load(f)
 
-    # Resolve environment variables in component names (e.g. S3 bucket name from Terraform)
+    # Store the real S3 bucket name in the CI's short_description for diagnostic lookups,
+    # but keep the human-readable name for the CMDB dependency map display.
     bucket_name = os.environ.get("STORAGE_S3_BUCKET_NAME", "")
     if bucket_name:
         for comp in defs["components"]:
             if comp["ci_class"] == "cmdb_ci_cloud_object_storage":
-                comp["name"] = bucket_name
+                comp.setdefault("attributes", {})["short_description"] = f"s3://{bucket_name}"
 
     # --- Business service ---
     bs = defs["business_service"]
@@ -246,7 +254,7 @@ def main() -> int:
             "description": comp["description"],
             **attrs,
         }
-        sid = create_or_update("cmdb_ci", comp["name"], comp["ci_class"], ci_data)
+        sid = create_or_update(comp["ci_class"], comp["name"], comp["ci_class"], ci_data)
         ci_sys_ids[comp["name"]] = sid
 
     # --- Relationships ---
