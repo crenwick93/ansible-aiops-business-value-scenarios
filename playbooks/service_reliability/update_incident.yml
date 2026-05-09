@@ -5,12 +5,16 @@
 
   tasks:
 
+    - name: Prepare analysis for ServiceNow rendering
+      ansible.builtin.set_fact:
+        formatted_analysis: "{{ alia_analysis | default('No analysis available.') | regex_replace('\n', '<br>') }}"
+
     - name: Update incident with AI analysis and set to In Progress
       servicenow.itsm.incident:
         sys_id: "{{ incident_sys_id }}"
         state: in_progress
         other:
-          work_notes: "[code]{{ alia_analysis | default('No analysis available.') }}[/code]"
+          work_notes: "{{ formatted_analysis }}"
       register: updated_incident
 
     - name: Confirm update
