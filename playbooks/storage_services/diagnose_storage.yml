@@ -15,24 +15,20 @@
       when: bucket_name == ''
 
     - name: Check S3 bucket accessibility
-      ansible.builtin.command:
-        cmd: "aws s3api head-bucket --bucket {{ bucket_name }} --region {{ bucket_region }}"
-      register: bucket_accessible
+      amazon.aws.s3_bucket_info:
+        name: "{{ bucket_name }}"
+        region: "{{ bucket_region }}"
+      register: bucket_info
       ignore_errors: true
-      changed_when: false
 
     - name: List objects in bucket
-      ansible.builtin.command:
-        cmd: "aws s3api list-objects-v2 --bucket {{ bucket_name }} --region {{ bucket_region }} --query '{ObjectCount: length(Contents || `[]`), TotalSizeBytes: sum(Contents[].Size || `[0]`)}' --output json"
+      amazon.aws.aws_s3:
+        bucket: "{{ bucket_name }}"
+        mode: list
+        region: "{{ bucket_region }}"
       register: bucket_objects
       ignore_errors: true
-      changed_when: false
-      when: bucket_accessible is succeeded
-
-    - name: Parse bucket stats
-      ansible.builtin.set_fact:
-        bucket_stats: "{{ bucket_objects.stdout | from_json }}"
-      when: bucket_accessible is succeeded and bucket_objects is succeeded
+      when: bucket_info is succeeded
 
     - name: Build diagnostic report
       ansible.builtin.set_fact:
@@ -41,16 +37,14 @@
           Bucket: {{ bucket_name }}
           Region: {{ bucket_region }}
 
-          Accessibility: {{ 'ACCESSIBLE' if bucket_accessible is succeeded else 'INACCESSIBLE — bucket may be deleted, permissions revoked, or region misconfigured' }}
+          Accessibility: {{ 'ACCESSIBLE' if bucket_info is succeeded else 'INACCESSIBLE — bucket may be deleted, permissions revoked, or region misconfigured' }}
 
-          {% if bucket_accessible is succeeded and bucket_stats is defined %}
-          Object count: {{ bucket_stats.ObjectCount | default(0) }}
-          Total size: {{ ((bucket_stats.TotalSizeBytes | default(0)) / 1048576) | round(2) }} MB
-          Capacity threshold: {{ capacity_threshold_gb }} GB
-          Status: {{ 'WITHIN LIMITS' if ((bucket_stats.TotalSizeBytes | default(0)) / 1073741824) < capacity_threshold_gb else 'WARNING — approaching capacity threshold' }}
+          {% if bucket_info is succeeded %}
+          Object count: {{ bucket_objects.s3_keys | default([]) | length }}
+          Bucket creation date: {{ bucket_info.buckets[0].creation_date | default('unknown') }}
           {% endif %}
 
-          ANALYSIS: {{ 'Object storage is healthy and within capacity limits. Document uploads are functioning normally. The issue is NOT caused by storage problems.' if bucket_accessible is succeeded else 'Object storage is INACCESSIBLE. This could prevent citizen document uploads from being saved, but would not directly cause payment processing failures.' }}
+          ANALYSIS: {{ 'Object storage is healthy and accessible. Document uploads are functioning normally. The issue is NOT caused by storage problems.' if bucket_info is succeeded else 'Object storage is INACCESSIBLE. This could prevent citizen document uploads from being saved, but would not directly cause payment processing failures.' }}
 
     - name: Display report
       ansible.builtin.debug:
