@@ -13,6 +13,14 @@
       ansible.builtin.set_fact:
         formatted_analysis: "{{ raw_analysis | regex_replace('<br>\\s*<br>', '<br>') | regex_replace('(</?(?:h[1-6]|p|ol|ul|li|pre|div)[^>]*>)\\s*<br>', '\\1') | regex_replace('<br>\\s*(</?(?:h[1-6]|p|ol|ul|li|pre|div))', '\\1') }}"
 
+    - name: Append suggested remediation template to analysis
+      ansible.builtin.set_fact:
+        formatted_analysis: >-
+          {{ formatted_analysis }}<h3>Suggested Remediation</h3><p><strong>Template:</strong> {{ suggested_template }}</p><p><strong>Parameters:</strong> {{ suggested_parameters }}</p><p><strong>Reason:</strong> {{ suggestion_reason }}</p>
+      when:
+        - suggested_template is defined
+        - suggested_template != 'none'
+
     - name: Resolve assignment group sys_id
       servicenow.itsm.api_info:
         resource: sys_user_group

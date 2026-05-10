@@ -1,0 +1,44 @@
+---
+# Queries the AAP Controller API for all available job templates across organizations.
+# This data feeds the AI Router so it can suggest a specific remediation template.
+#
+# Alternative: The same result could be achieved via the ansible.mcp collection
+# (ansible.mcp.run_tool calling the AAP MCP server's job_templates_list tool)
+# for an MCP-native approach.  REST API used here for demo simplicity.
+
+- name: Collect Automation Catalog - Discover available remediation templates
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | regex_replace('/+$', '') }}"
+    controller_token: "{{ lookup('env', 'CONTROLLER_OAUTH_TOKEN') }}"
+    validate_tls: "{{ lookup('env', 'CONTROLLER_VERIFY_SSL') | default('false', true) | bool }}"
+
+  tasks:
+
+    - name: Query all job templates from the automation platform
+      ansible.builtin.uri:
+        url: "{{ controller_host }}/v2/job_templates/?page_size=200"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ controller_token }}"
+        return_content: true
+        validate_certs: "{{ validate_tls }}"
+      register: jt_response
+
+    - name: Build concise template catalog
+      ansible.builtin.set_fact:
+        automation_catalog: "{{ automation_catalog | default([]) + [{'name': item.name, 'description': item.description, 'organization': item.summary_fields.organization.name}] }}"
+      loop: "{{ jt_response.json.results }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Display discovered templates
+      ansible.builtin.debug:
+        msg: "Collected {{ automation_catalog | length }} templates across {{ automation_catalog | map(attribute='organization') | unique | list | length }} organizations"
+
+    - name: Publish automation catalog for downstream workflow steps
+      ansible.builtin.set_stats:
+        data:
+          automation_catalog: "{{ automation_catalog }}"

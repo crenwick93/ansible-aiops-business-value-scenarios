@@ -415,6 +415,17 @@ controller_templates:
       - "ServiceNow ITSM"
       - "ALIA API"
 
+  - name: "Collect Automation Catalog"
+    description: "Query the automation platform API to discover available remediation templates across all organizations"
+    organization: "Service Reliability"
+    job_type: "run"
+    project: "Incident Response Automation"
+    playbook: "playbooks/service_reliability/collect_automation_catalog.yml"
+    inventory: "All Services"
+    ask_variables_on_launch: true
+    credentials:
+      - "AAP Controller"
+
   - name: "Update SNOW Incident"
     description: "Post AI analysis to ServiceNow incident work notes and advance state"
     organization: "Service Reliability"
@@ -656,6 +667,7 @@ controller_workflows:
           - "Diagnose Message Queue"
           - "Diagnose Storage"
           - "Diagnose Database"
+          - "Collect Automation Catalog"
 
       - identifier: "Diagnose Application"
         unified_job_template: "Diagnose Application"
@@ -678,6 +690,11 @@ controller_workflows:
       - identifier: "Diagnose Database"
         unified_job_template: "Diagnose Database"
         organization: "Database Services"
+        success_nodes:
+          - "AI Router"
+
+      - identifier: "Collect Automation Catalog"
+        unified_job_template: "Collect Automation Catalog"
         success_nodes:
           - "AI Router"
 

@@ -75,9 +75,74 @@
       ansible.builtin.debug:
         msg: "AI recommends reassignment to: {{ recommended_group }}"
 
+    # --- Phase 2: Suggest a remediation template from the automation catalog ---
+
+    - name: Filter automation catalog to the recommended team
+      ansible.builtin.set_fact:
+        filtered_catalog: "{{ automation_catalog | default([]) | selectattr('organization', 'equalto', recommended_group) | rejectattr('name', 'match', '^Diagnose.*') | list }}"
+
+    - name: Build template suggestion query
+      ansible.builtin.set_fact:
+        template_query: |-
+          You are an expert site reliability engineer. Based on the incident analysis below and the available automation templates, recommend which template should be run to remediate this issue.
+
+          Incident: {{ incident_description | default('No incident description provided.') }}
+
+          Analysis (from prior investigation):
+          {{ alia_analysis }}
+
+          Available automation templates from {{ recommended_group }}:
+          {% for t in filtered_catalog %}
+          - {{ t.name }}: {{ t.description }}
+          {% endfor %}
+
+          Respond with EXACTLY three lines (plain text, no HTML):
+          TEMPLATE: <exact template name from the list above>
+          PARAMETERS: <comma-separated key=value pairs to pass to the template, e.g. target_service=payment-svc>
+          REASON: <one sentence explaining why this template fixes the issue>
+
+          Only suggest templates that directly address the root cause identified in the analysis. If no template is appropriate, use TEMPLATE: none.
+      when: filtered_catalog | length > 0
+
+    - name: Call ALIA for template recommendation
+      ansible.builtin.uri:
+        url: "{{ alia_base_url }}/api/lightspeed/v1/ai/chat/"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ alia_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          query: "{{ template_query }}"
+        return_content: true
+        status_code: 200
+        validate_certs: "{{ validate_tls }}"
+        timeout: "{{ request_timeout }}"
+      register: template_response
+      when: filtered_catalog | default([]) | length > 0
+
+    - name: Extract template suggestion
+      ansible.builtin.set_fact:
+        template_suggestion_raw: "{{ (template_response.json | default((template_response.content | from_json), true)).response | default('') }}"
+      when: template_response is not skipped
+
+    - name: Parse suggested template name
+      ansible.builtin.set_fact:
+        suggested_template: "{{ template_suggestion_raw | regex_search('TEMPLATE:\\s*(.+)', '\\1') | default(['none'], true) | first | trim }}"
+        suggested_parameters: "{{ template_suggestion_raw | regex_search('PARAMETERS:\\s*(.+)', '\\1') | default(['none'], true) | first | trim }}"
+        suggestion_reason: "{{ template_suggestion_raw | regex_search('REASON:\\s*(.+)', '\\1') | default(['No suggestion available.'], true) | first | trim }}"
+      when: template_suggestion_raw is defined
+
+    - name: Display template suggestion
+      ansible.builtin.debug:
+        msg: "AI suggests running '{{ suggested_template | default('none') }}' with parameters: {{ suggested_parameters | default('none') }} — {{ suggestion_reason | default('') }}"
+
     - name: Publish analysis for downstream workflow steps
       ansible.builtin.set_stats:
         data:
           alia_analysis: "{{ alia_analysis }}"
           incident_sys_id: "{{ incident_sys_id }}"
           recommended_group: "{{ recommended_group }}"
+          suggested_template: "{{ suggested_template | default('none') }}"
+          suggested_parameters: "{{ suggested_parameters | default('none') }}"
+          suggestion_reason: "{{ suggestion_reason | default('No suggestion available.') }}"
