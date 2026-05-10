@@ -449,17 +449,6 @@ controller_templates:
     credentials:
       - "Application SSH"
 
-  - name: "Restart Application Stack"
-    description: "Rolling restart of application services with load balancer drain and re-register"
-    organization: "Application Services"
-    job_type: "run"
-    project: "Application Automation"
-    playbook: "playbooks/application_services/restart_application_stack.yml"
-    inventory: "Application Hosts"
-    ask_variables_on_launch: true
-    credentials:
-      - "Application SSH"
-
   - name: "Diagnose Application"
     description: "Check health endpoints for CMDB-identified application components"
     organization: "Application Services"
@@ -483,7 +472,7 @@ controller_templates:
       - "Application SSH"
 
   - name: "Rollback Service Configuration"
-    description: "Reconcile a drifted service config with its declared state in source control — pulls known-good, restores, restarts, verifies"
+    description: "Restore drifted service configuration (routing rules, feature flags, environment config) to the last known-good state from source control — compares, restores, restarts service, verifies"
     organization: "Application Services"
     job_type: "run"
     project: "Application Automation"
