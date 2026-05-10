@@ -324,7 +324,7 @@ controller_credentials:
     inputs:
       host: "{{ (aap_hostname | regex_replace('/+$','')) ~ '/api/controller/' }}"
       oauth_token: "{{ aap_token }}"
-      verify_ssl: "{{ aap_validate_certs }}"
+      verify_ssl: "{{ aap_validate_certs | bool }}"
 
   - name: "ALIA API"
     description: "Bearer token for Ansible Lightspeed Intelligent Assist (uses AAP gateway auth)"
