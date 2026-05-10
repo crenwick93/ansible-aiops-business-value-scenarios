@@ -84,23 +84,23 @@
     - name: Build template suggestion query
       ansible.builtin.set_fact:
         template_query: |-
-          You are an expert site reliability engineer. Based on the incident analysis below and the available automation templates, recommend which template should be run to remediate this issue.
+          You are an expert site reliability engineer. Based on the incident analysis below and the available Ansible Job Templates, recommend which Ansible Job Template should be run to remediate this issue.
 
           Incident: {{ incident_description | default('No incident description provided.') }}
 
           Analysis (from prior investigation):
           {{ alia_analysis }}
 
-          Available automation templates from {{ recommended_group }}:
+          Available Ansible Job Templates from {{ recommended_group }}:
           {% for t in filtered_catalog %}
           - {{ t.name }}: {{ t.description }}
           {% endfor %}
 
           Respond with EXACTLY two lines (plain text, no HTML):
-          TEMPLATE: <exact template name from the list above>
-          REASON: <one sentence explaining why this template is the right fix for the root cause>
+          TEMPLATE: <exact Ansible Job Template name from the list above>
+          REASON: <one sentence explaining why this Ansible Job Template is the right fix for the root cause>
 
-          Only suggest templates that directly address the root cause identified in the analysis. If no template is appropriate, use TEMPLATE: none.
+          Only suggest Ansible Job Templates that directly address the root cause identified in the analysis. If no template is appropriate, use TEMPLATE: none.
       when: filtered_catalog | length > 0
 
     - name: Call ALIA for template recommendation
