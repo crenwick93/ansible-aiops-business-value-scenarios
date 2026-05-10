@@ -415,7 +415,7 @@ controller_templates:
       - "ServiceNow ITSM"
       - "ALIA API"
 
-  - name: "Collect Automation Catalog"
+  - name: "Automation Catalog"
     description: "Query the automation platform API to discover available remediation templates across all organizations"
     organization: "Service Reliability"
     job_type: "run"
@@ -672,28 +672,28 @@ controller_workflows:
         unified_job_template: "Diagnose Application"
         organization: "Application Services"
         success_nodes:
-          - "Collect Automation Catalog"
+          - "Automation Catalog"
 
       - identifier: "Diagnose Message Queue"
         unified_job_template: "Diagnose Message Queue"
         organization: "Middleware Services"
         success_nodes:
-          - "Collect Automation Catalog"
+          - "Automation Catalog"
 
       - identifier: "Diagnose Storage"
         unified_job_template: "Diagnose Storage"
         organization: "Storage Services"
         success_nodes:
-          - "Collect Automation Catalog"
+          - "Automation Catalog"
 
       - identifier: "Diagnose Database"
         unified_job_template: "Diagnose Database"
         organization: "Database Services"
         success_nodes:
-          - "Collect Automation Catalog"
+          - "Automation Catalog"
 
-      - identifier: "Collect Automation Catalog"
-        unified_job_template: "Collect Automation Catalog"
+      - identifier: "Automation Catalog"
+        unified_job_template: "Automation Catalog"
         all_parents_must_converge: true
         success_nodes:
           - "AI Router"

@@ -36,11 +36,12 @@
     monitoring_ssh_key: "{{ lookup('file', monitoring_ssh_key_path, errors='ignore') | default(omit, true) }}"
     monitoring_ssh_key_path: "{{ lookup('env', 'MONITORING_SSH_KEY_PATH') | default(playbook_dir + '/../../infra/terraform/aiops-demo.pem', true) }}"
 
-    # Host IPs (override via env for dynamic environments; defaults match Terraform outputs)
-    payment_svc_ip: "{{ lookup('env', 'PAYMENT_SVC_IP') | default('10.0.1.182', true) }}"
-    app_svc_ip: "{{ lookup('env', 'APP_SVC_IP') | default('10.0.1.16', true) }}"
-    kafka_ip: "{{ lookup('env', 'KAFKA_IP') | default('10.0.2.30', true) }}"
-    postgres_ip: "{{ lookup('env', 'POSTGRES_IP') | default('10.0.3.61', true) }}"
+    # Host addresses (Route53 DNS names resolve to current public/private IPs automatically)
+    demo_domain: "{{ lookup('env', 'DEMO_DOMAIN') | default('sandbox2797.opentlc.com', true) }}"
+    payment_svc_ip: "{{ lookup('env', 'PAYMENT_SVC_IP') | default('payment-svc.' ~ demo_domain, true) }}"
+    app_svc_ip: "{{ lookup('env', 'APP_SVC_IP') | default('app-svc.' ~ demo_domain, true) }}"
+    kafka_ip: "{{ lookup('env', 'KAFKA_IP') | default('kafka.' ~ demo_domain, true) }}"
+    postgres_ip: "{{ lookup('env', 'POSTGRES_IP') | default('postgres.' ~ demo_domain, true) }}"
 
     # Git repo URL — this project's repo (override with GIT_REPO_URL in .env for forks)
     git_repo_url: "{{ lookup('env', 'GIT_REPO_URL') | default('https://github.com/crenwick93/ansible-aiops-business-value-scenarios.git', true) }}"
