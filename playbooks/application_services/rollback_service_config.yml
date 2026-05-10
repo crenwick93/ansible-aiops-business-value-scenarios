@@ -1,32 +1,27 @@
 ---
 # Rollback Service Configuration
 #
-# Reconciles a live service configuration with its declared state in source
-# control. Pulls the known-good config from the Git repository, replaces the
-# drifted file on the target host, restarts the service, and verifies health.
+# Restores a service's live config to the known-good state from source control.
+# Only needs target_service — everything else follows convention.
 #
-# Variables:
-#   target_hosts    — host or group to target
-#   service_name    — systemd service to restart after rollback
-#   config_path     — absolute path to the config file on the target host
-#   repo_config_path — path to the known-good config relative to repo root
-#   health_port     — (optional) port to verify after restart (default: 5000)
-#   git_ref         — (optional) branch/tag to pull from (default: main)
+# Parameters:
+#   target_service — service to fix (e.g. payment-svc)
+#   git_ref        — (optional) branch/tag to pull from (default: main)
 
 - name: Rollback Service Configuration
-  hosts: "{{ target_hosts }}"
+  hosts: "{{ target_service }}"
   become: true
   vars:
     git_ref: "main"
-    health_port: 5000
+    config_path: "/opt/{{ target_service }}/config.py"
+    repo_config_path: "services/{{ target_service }}/config.py"
+    health_port: "{{ (target_service == 'payment-svc') | ternary('5000', '5001') }}"
   tasks:
     - name: Validate required parameters
       ansible.builtin.assert:
         that:
-          - config_path is defined
-          - repo_config_path is defined
-          - service_name is defined
-        fail_msg: "Required: config_path, repo_config_path, service_name"
+          - target_service is defined
+        fail_msg: "Required: target_service (e.g. payment-svc)"
 
     - name: Capture current config for audit trail
       ansible.builtin.slurp:
@@ -66,7 +61,7 @@
 
     - name: Restart service to apply restored configuration
       ansible.builtin.systemd:
-        name: "{{ service_name }}"
+        name: "{{ target_service }}"
         state: restarted
       when: config_restored is changed
 
@@ -86,5 +81,5 @@
       ansible.builtin.assert:
         that:
           - "(final_config.content | b64decode) == declared_config.content"
-        success_msg: "Configuration reconciled — {{ service_name }} now matches declared state ({{ git_ref }})"
+        success_msg: "Configuration reconciled — {{ target_service }} now matches declared state ({{ git_ref }})"
         fail_msg: "Reconciliation failed — config still differs from source of truth"

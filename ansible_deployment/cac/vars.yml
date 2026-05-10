@@ -472,7 +472,7 @@ controller_templates:
       - "Application SSH"
 
   - name: "Rollback Service Configuration"
-    description: "Restore drifted service configuration (routing rules, feature flags, environment config) to the last known-good state from source control. Parameters: target_hosts (host to fix, e.g. payment-svc), service_name (systemd unit, e.g. payment-svc), config_path (live config, e.g. /opt/payment-svc/config.py), repo_config_path (source of truth, e.g. services/payment-svc/config.py), health_port (default 5000)"
+    description: "Restore drifted service configuration (routing rules, feature flags, environment config) to the last known-good state from source control. Parameters: target_service (e.g. payment-svc), git_ref (optional, default: main)"
     organization: "Application Services"
     job_type: "run"
     project: "Application Automation"
