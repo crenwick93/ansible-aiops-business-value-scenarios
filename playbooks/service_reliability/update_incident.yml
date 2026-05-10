@@ -16,7 +16,7 @@
     - name: Append suggested remediation template to analysis
       ansible.builtin.set_fact:
         formatted_analysis: >-
-          {{ formatted_analysis }}<h3>Suggested Remediation</h3><p><strong>Template:</strong> {{ suggested_template }}</p><p><strong>Parameters:</strong> {{ suggested_parameters }}</p><p><strong>Reason:</strong> {{ suggestion_reason }}</p>
+          {{ formatted_analysis }}<h3>Suggested Remediation</h3><p><strong>Template:</strong> {{ suggested_template }}</p><p><strong>Reason:</strong> {{ suggestion_reason }}</p>
       when:
         - suggested_template is defined
         - suggested_template != 'none'

@@ -96,10 +96,9 @@
           - {{ t.name }}: {{ t.description }}
           {% endfor %}
 
-          Respond with EXACTLY three lines (plain text, no HTML):
+          Respond with EXACTLY two lines (plain text, no HTML):
           TEMPLATE: <exact template name from the list above>
-          PARAMETERS: <comma-separated key=value pairs to pass to the template, e.g. target_service=payment-svc>
-          REASON: <one sentence explaining why this template fixes the issue>
+          REASON: <one sentence explaining why this template is the right fix for the root cause>
 
           Only suggest templates that directly address the root cause identified in the analysis. If no template is appropriate, use TEMPLATE: none.
       when: filtered_catalog | length > 0
@@ -129,13 +128,12 @@
     - name: Parse suggested template name
       ansible.builtin.set_fact:
         suggested_template: "{{ template_suggestion_raw | regex_search('TEMPLATE:\\s*(.+)', '\\1') | default(['none'], true) | first | trim }}"
-        suggested_parameters: "{{ template_suggestion_raw | regex_search('PARAMETERS:\\s*(.+)', '\\1') | default(['none'], true) | first | trim }}"
         suggestion_reason: "{{ template_suggestion_raw | regex_search('REASON:\\s*(.+)', '\\1') | default(['No suggestion available.'], true) | first | trim }}"
       when: template_suggestion_raw is defined
 
     - name: Display template suggestion
       ansible.builtin.debug:
-        msg: "AI suggests running '{{ suggested_template | default('none') }}' with parameters: {{ suggested_parameters | default('none') }} — {{ suggestion_reason | default('') }}"
+        msg: "AI suggests: '{{ suggested_template | default('none') }}' — {{ suggestion_reason | default('') }}"
 
     - name: Publish analysis for downstream workflow steps
       ansible.builtin.set_stats:
@@ -144,5 +142,4 @@
           incident_sys_id: "{{ incident_sys_id }}"
           recommended_group: "{{ recommended_group }}"
           suggested_template: "{{ suggested_template | default('none') }}"
-          suggested_parameters: "{{ suggested_parameters | default('none') }}"
           suggestion_reason: "{{ suggestion_reason | default('No suggestion available.') }}"

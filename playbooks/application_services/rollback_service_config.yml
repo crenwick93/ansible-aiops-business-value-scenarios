@@ -1,28 +1,19 @@
 ---
 # Rollback Service Configuration
 #
-# Restores a service's live config to the known-good state from source control.
-# Only needs target_service — everything else follows convention.
-#
-# Parameters:
-#   target_service — service to fix (e.g. payment-svc)
-#   git_ref        — (optional) branch/tag to pull from (default: main)
+# Restores the live service config to the known-good state from source control.
+# Runs against whichever host AAP targets (via inventory + limit).
+# The config path and repo path follow naming convention from the inventory hostname.
 
 - name: Rollback Service Configuration
-  hosts: "{{ target_service }}"
+  hosts: all
   become: true
   vars:
     git_ref: "main"
-    config_path: "/opt/{{ target_service }}/config.py"
-    repo_config_path: "services/{{ target_service }}/config.py"
-    health_port: "{{ (target_service == 'payment-svc') | ternary('5000', '5001') }}"
+    config_path: "/opt/{{ inventory_hostname }}/config.py"
+    repo_config_path: "services/{{ inventory_hostname }}/config.py"
+    health_port: "{{ (inventory_hostname == 'payment-svc') | ternary('5000', '5001') }}"
   tasks:
-    - name: Validate required parameters
-      ansible.builtin.assert:
-        that:
-          - target_service is defined
-        fail_msg: "Required: target_service (e.g. payment-svc)"
-
     - name: Capture current config for audit trail
       ansible.builtin.slurp:
         src: "{{ config_path }}"
@@ -61,7 +52,7 @@
 
     - name: Restart service to apply restored configuration
       ansible.builtin.systemd:
-        name: "{{ target_service }}"
+        name: "{{ inventory_hostname }}"
         state: restarted
       when: config_restored is changed
 
@@ -81,5 +72,5 @@
       ansible.builtin.assert:
         that:
           - "(final_config.content | b64decode) == declared_config.content"
-        success_msg: "Configuration reconciled — {{ target_service }} now matches declared state ({{ git_ref }})"
+        success_msg: "Configuration reconciled — {{ inventory_hostname }} now matches declared state ({{ git_ref }})"
         fail_msg: "Reconciliation failed — config still differs from source of truth"
