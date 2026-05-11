@@ -20,7 +20,25 @@
 
 ---
 
-## 1. Show the Automation Catalog (2 orgs)
+## 1. Show the ServiceNow Dependency Map
+
+**Goal:** Set the scene — show how the service graph maps real infrastructure components to the teams that own them.
+
+1. Open **ServiceNow** and navigate to **Configuration > CMDB > CI Class Manager** (or search "dependency map")
+2. Search for **Passport online application service**
+3. Open the **Dependency Map** — it shows the full service graph:
+   - **payment-svc** (Application Services)
+   - **app-svc** (Application Services)
+   - **kafka-payment-queue** (Middleware Services)
+   - **postgres-app-db** (Database Services)
+   - **s3-object-storage** (Storage Services)
+4. Point out: each component has an **Assignment group** that maps directly to an AAP organization
+
+> **Talking point:** This is the CMDB as the source of truth. When an incident fires, we use this graph to know what to diagnose and who owns what. The assignment groups here are the same orgs you'll see in AAP.
+
+---
+
+## 2. Show the Automation Catalog (2 orgs)
 
 **Goal:** Set the scene — this is a mature AAP customer with automation broken into team-owned orgs.
 
@@ -42,7 +60,7 @@
 
 ---
 
-## 2. Show EDA and the Workflow (SRE view)
+## 3. Show EDA and the Workflow (SRE view)
 
 1. Log into AAP as `sre_admin`
 2. Navigate to **Event-Driven Ansible > Rulebook Activations**
@@ -58,7 +76,7 @@
 
 ---
 
-## 3. Show the Citizen Portal — Working vs Stuck
+## 4. Show the Citizen Portal — Working vs Stuck
 
 **Goal:** Show a citizen who paid and is progressing, vs one who paid but is stuck.
 
@@ -70,7 +88,7 @@
 
 ---
 
-## 4. Show the Engineering Dashboard — No Obvious Issues
+## 5. Show the Engineering Dashboard — No Obvious Issues
 
 1. Open the **Engineering Dashboard**: `http://dashboard.sandbox2797.opentlc.com:8080/engineering`
 2. Point out: services show healthy, no alerts firing, throughput looks normal
@@ -80,7 +98,7 @@
 
 ---
 
-## 5. Create the Incident Manually in ServiceNow
+## 6. Create the Incident Manually in ServiceNow
 
 1. Open ServiceNow: `https://dev355616.service-now.com`
 2. Navigate to **Incident > Create New**
@@ -116,7 +134,7 @@ but your application has not yet progressed."
 
 ---
 
-## 6. Watch the Workflow Execute
+## 7. Watch the Workflow Execute
 
 1. Switch to AAP (logged in as `sre_admin`)
 2. Navigate to **Jobs** — the workflow should appear within ~30 seconds
@@ -129,7 +147,7 @@ but your application has not yet progressed."
 
 ---
 
-## 7. Show the ServiceNow Results
+## 8. Show the ServiceNow Results
 
 Once the workflow completes (final node turns green):
 
@@ -146,7 +164,7 @@ Once the workflow completes (final node turns green):
 
 ---
 
-## 8. Be the Application Team — Verify the Issue
+## 9. Be the Application Team — Verify the Issue
 
 Now pretend you're the app team who just received this ticket.
 
@@ -169,7 +187,7 @@ Now pretend you're the app team who just received this ticket.
 
 ---
 
-## 9. Run the Remediation
+## 10. Run the Remediation
 
 1. Log into AAP as `app_admin`
 2. Navigate to **Templates > Rollback Payment Service Config**
@@ -184,7 +202,7 @@ Now pretend you're the app team who just received this ticket.
 
 ---
 
-## 10. Verify the Fix
+## 11. Verify the Fix
 
 1. SSH back to payment-svc and follow the logs:
    ```
@@ -200,7 +218,7 @@ Now pretend you're the app team who just received this ticket.
 
 ---
 
-## 11. Close the Incident
+## 12. Close the Incident
 
 1. Switch back to **ServiceNow**
 2. Open the incident
@@ -241,4 +259,4 @@ Alternatively, run the break playbook from your local machine:
 ansible-playbook playbooks/_demo/break/introduce_misrouting.yml -i inventory/aws_ec2.yml
 ```
 
-The environment is now ready for another demo run — start again from Step 5.
+The environment is now ready for another demo run — start again from Step 6.
