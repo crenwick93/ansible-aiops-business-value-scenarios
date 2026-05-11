@@ -6,8 +6,8 @@
 |---------|-----|
 | AAP | https://aap.sandbox2797.opentlc.com |
 | ServiceNow | https://dev355616.service-now.com |
-| Citizen Portal | http://dashboard.sandbox2797.opentlc.com (or customer-view) |
-| Engineering Dashboard | http://dashboard.sandbox2797.opentlc.com/engineering |
+| Citizen Portal | http://dashboard.sandbox2797.opentlc.com:8080 |
+| Engineering Dashboard | http://dashboard.sandbox2797.opentlc.com:8080/engineering |
 | Kafdrop (Kafka UI) | http://dashboard.sandbox2797.opentlc.com:9000 |
 
 | AAP User | Org |
@@ -72,7 +72,7 @@
 
 ## 4. Show the Engineering Dashboard — No Obvious Issues
 
-1. Open the **Engineering Dashboard**: `http://dashboard.sandbox2797.opentlc.com/engineering`
+1. Open the **Engineering Dashboard**: `http://dashboard.sandbox2797.opentlc.com:8080/engineering`
 2. Point out: services show healthy, no alerts firing, throughput looks normal
 3. This is the subtle nature of the bug — it doesn't trigger traditional monitoring
 
