@@ -157,7 +157,7 @@ Now pretend you're the app team who just received this ticket.
 
 2. Check the logs — you'll see standard adult payments going to the DLQ:
    ```
-   sudo journalctl -u payment-svc --since "5 minutes ago" --no-pager | grep fee.standard.adult
+   sudo journalctl -u payment-svc -f
    ```
 
 3. Look at the config file — you'll see the incorrect routing:
@@ -186,11 +186,11 @@ Now pretend you're the app team who just received this ticket.
 
 ## 10. Verify the Fix
 
-1. SSH back to payment-svc and check the logs again:
+1. SSH back to payment-svc and follow the logs:
    ```
-   sudo journalctl -u payment-svc --since "1 minute ago" --no-pager | grep fee.standard.adult
+   sudo journalctl -u payment-svc -f
    ```
-   Standard adult payments should now be going to the `payments` topic (not DLQ).
+   You'll see `fee.standard.adult` now going to the `payments` topic (not DLQ).
 
 2. Copy a `CIT-XXXXXX` reference from the log output (pick one with `fee.standard.adult`)
 
