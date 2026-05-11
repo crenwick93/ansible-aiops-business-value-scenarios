@@ -1,0 +1,34 @@
+---
+- name: Restart Application Service
+  hosts: all
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Drain active connections
+      ansible.builtin.debug:
+        msg: "Draining connections on {{ inventory_hostname }}..."
+
+    - name: Restart the application service
+      ansible.builtin.systemd:
+        name: "{{ inventory_hostname }}"
+        state: restarted
+
+    - name: Wait for service readiness
+      ansible.builtin.wait_for:
+        port: "{{ (inventory_hostname == 'payment-svc') | ternary('5000', '5001') }}"
+        delay: 3
+        timeout: 30
+
+    - name: Verify health endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ (inventory_hostname == 'payment-svc') | ternary('5000', '5001') }}/health"
+        method: GET
+      register: health
+      retries: 5
+      delay: 3
+      until: health.status == 200
+
+    - name: Confirm service healthy
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} restarted and healthy (HTTP {{ health.status }})"
