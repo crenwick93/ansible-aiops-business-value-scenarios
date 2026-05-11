@@ -80,11 +80,11 @@
 
 **Goal:** Show a citizen who paid and is progressing, vs one who paid but is stuck.
 
-1. Open the **Citizen Portal** in a browser
-2. Look up a **priority** application reference — it will show status progressing through the stages normally
-3. Look up a **standard adult** application reference — it will be stuck at "Payment Received" and not progressing
+1. Open the **Citizen Portal**: `http://dashboard.sandbox2797.opentlc.com:8080`
+2. Look up `CIT-CLARK04` — a priority adult application, submitted around the same time. It shows as **Processing** — working fine
+3. Look up `CIT-SMITH01` — a standard adult application, submitted 21 April. It's stuck at **Payment Received** and hasn't progressed in 17 days
 
-> To find real references, check the database or Kafdrop. Standard adult applications (`fee.standard.adult`) are the ones being misrouted to the DLQ, so they never reach processing. Priority and child applications work fine.
+> **Talking point:** Both citizens paid around the same time. The priority application progressed normally, but the standard adult one is stuck. Same service, same timeframe — only standard adult is affected. That's why citizens are calling the call centre.
 
 ---
 
@@ -122,9 +122,9 @@ passport applications are stuck at "Payment Received - Awaiting Processing".
 Citizens have been charged but applications are not progressing to the processing stage.
 
 Affected references reported by citizens:
-- CIT-SMITH01 — submitted 21 April, last updated 23 April, stuck 14 days
-- CIT-JONES02 — submitted 22 April, stuck 13 days
-- CIT-BROWN03 — submitted 24 April, stuck 11 days
+- CIT-SMITH01 — submitted 21 April, last updated 23 April, stuck 17 days
+- CIT-JONES02 — submitted 19 April, stuck 18 days
+- CIT-PATEL03 — submitted 17 April, stuck 20 days
 
 Citizen-facing status page shows red warning: "Your payment was received
 but your application has not yet progressed."
