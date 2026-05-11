@@ -5,14 +5,14 @@
 # Runs against whichever host AAP targets (via inventory + limit).
 # The config path and repo path follow naming convention from the inventory hostname.
 
-- name: Rollback Service Configuration
-  hosts: all
+- name: Rollback Payment Service Config
+  hosts: payment-svc
   become: true
   vars:
     git_ref: "main"
-    config_path: "/opt/{{ inventory_hostname }}/config.py"
-    repo_config_path: "services/{{ inventory_hostname }}/config.py"
-    health_port: "{{ (inventory_hostname == 'payment-svc') | ternary('5000', '5001') }}"
+    config_path: "/opt/payment-svc/config.py"
+    repo_config_path: "services/payment-svc/config.py"
+    health_port: "5000"
   tasks:
     - name: Capture current config for audit trail
       ansible.builtin.slurp:

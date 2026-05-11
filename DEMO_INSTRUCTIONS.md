@@ -29,7 +29,7 @@
    - Deploy Application
    - Diagnose Application
    - Rollback Deployment
-   - Rollback Service Configuration
+   - Rollback Payment Service Config
 3. Log out, log in as `middleware_admin`
 4. Show **Templates** — Middleware Services own Kafka operations:
    - Patch Kafka Brokers
@@ -139,7 +139,7 @@ Once the workflow completes (final node turns green):
    - **Evidence** — specific log lines and metrics cited
    - **Remediation** — step-by-step fix instructions
    - **Assignment** — reassigned to Application Services
-   - **Suggested Remediation** — "Rollback Service Configuration" Ansible Job Template with reason
+   - **Suggested Remediation** — "Rollback Payment Service Config" Ansible Job Template with reason
 3. Show the **Assignment group** has changed from "Service Reliability" to "Application Services"
 
 > **Talking point:** The ticket went from "new" to "in progress" with a full root cause analysis, evidence, remediation steps, and team assignment — all automated. No ticket ping-pong.
@@ -172,7 +172,7 @@ Now pretend you're the app team who just received this ticket.
 ## 9. Run the Remediation
 
 1. Log into AAP as `app_admin`
-2. Navigate to **Templates > Rollback Service Configuration**
+2. Navigate to **Templates > Rollback Payment Service Config**
 3. Click **Launch**
 4. The template will:
    - Fetch the correct config from Git
@@ -208,7 +208,7 @@ Now pretend you're the app team who just received this ticket.
 4. Add a **Close note**:
    ```
    Root cause identified by automated diagnostics — payment-svc config drift was routing
-   fee.standard.adult to DLQ. Resolved by running Rollback Service Configuration job template.
+   fee.standard.adult to DLQ. Resolved by running Rollback Payment Service Config job template.
    Standard adult applications now processing normally.
    ```
 5. Click **Update**

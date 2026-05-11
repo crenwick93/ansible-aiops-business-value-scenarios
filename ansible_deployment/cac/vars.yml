@@ -471,8 +471,8 @@ controller_templates:
     credentials:
       - "Application SSH"
 
-  - name: "Rollback Service Configuration"
-    description: "Restore drifted service configuration (routing rules, feature flags, environment config) to the last known-good state from source control. Launch with limit set to the affected host (e.g. payment-svc)"
+  - name: "Rollback Payment Service Config"
+    description: "Restore drifted payment-svc configuration (routing rules, feature flags) to the last known-good state from source control"
     organization: "Application Services"
     job_type: "run"
     project: "Application Automation"
