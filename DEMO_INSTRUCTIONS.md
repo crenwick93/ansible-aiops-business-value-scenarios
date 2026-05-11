@@ -28,7 +28,7 @@
 2. Show **Templates** — these are the Application Services team's automation:
    - Deploy Application
    - Diagnose Application
-   - Rollback Deployment
+   - Restart Application Service
    - Rollback Payment Service Config
 3. Log out, log in as `middleware_admin`
 4. Show **Templates** — Middleware Services own Kafka operations:

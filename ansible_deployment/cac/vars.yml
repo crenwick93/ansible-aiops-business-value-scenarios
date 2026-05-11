@@ -460,12 +460,12 @@ controller_templates:
     credentials:
       - "Application SSH"
 
-  - name: "Rollback Deployment"
-    description: "Revert to a previous application version with optional migration rollback"
+  - name: "Restart Application Service"
+    description: "Restart application processes with health verification and connection draining"
     organization: "Application Services"
     job_type: "run"
     project: "Application Automation"
-    playbook: "playbooks/application_services/rollback_deployment.yml"
+    playbook: "playbooks/application_services/restart_application_service.yml"
     inventory: "Application Hosts"
     ask_variables_on_launch: true
     credentials:
